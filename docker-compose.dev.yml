@@ -1,0 +1,26 @@
+version: '3'
+services:
+
+  db:
+    image: postgres
+    env_file:
+      - .db.dev.env
+    volumes:
+      - ./data-dev:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+  backend:
+    env_file:
+      - .backend.dev.env
+      - .db.dev.env
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend:/app
+    depends_on:
+      - db
+    ports:
+      - "5000:5000"
+        #    command: flask run --host=0.0.0.0
+
