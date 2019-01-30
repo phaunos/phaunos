@@ -4,15 +4,13 @@ services:
   db:
     image: postgres
     env_file:
-      - .db.dev.env
-    volumes:
-      - ./data-dev:/var/lib/postgresql/data
+      - .db.test.env
     networks:
       - db_nw
   backend:
     env_file:
-      - .backend.dev.env
-      - .db.dev.env
+      - .backend.test.env
+      - .db.test.env
     build:
       context: backend
       dockerfile: Dockerfile
@@ -25,9 +23,10 @@ services:
     ports:
       - "5000:5000"
     entrypoint:
-      - backend/boot.dev.sh
+      - ./boot.test.sh
         #    command: flask run --host=0.0.0.0
 
 networks:
   db_nw:
     driver: bridge
+

@@ -20,9 +20,13 @@ from flask_migrate import Migrate
 #### Application Factory Function ####
 ######################################
 
-def create_app():
+def create_app(testing=False):
     app = Flask(__name__)
     app.config.from_pyfile("config.py")
+    
+    if testing:
+        app.config["TESTING"] = True
+
     initialize_extensions(app)
     app.register_blueprint(phaunos_api)
     register_cli(app)
