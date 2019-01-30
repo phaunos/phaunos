@@ -4,6 +4,10 @@ from flask import Flask
 from phaunos.phaunos.routes import phaunos_api
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+import numpy as np
+import wavio
+import uuid
+import os
 
 
 #######################
@@ -34,8 +38,6 @@ def create_app(testing=False):
 
 
 def initialize_extensions(app):
-    # Since the application instance is now created, pass it to each Flask
-    # extension instance to bind it to the Flask application instance (app)
     from phaunos.models import db, ma
     db.init_app(app)
     ma.init_app(app)
@@ -49,7 +51,7 @@ def initialize_extensions(app):
 def register_cli(app):
 
     @app.cli.command()
-    def dummy():
+    def put_dummy_data():
         
         from phaunos.models import db
         from phaunos.phaunos.models import (
@@ -61,37 +63,54 @@ def register_cli(app):
                 )
         from phaunos.user.models import User
 
+        app.config["DUMMY_DATA_FOLDER"] = '/app/dummy_data'
+        print(app.config["DUMMY_DATA_FOLDER"])
+        print(app)
 
-        n_tagtypes = 3
+        n_tagtypes = 30
         n_tags = 5 # per tagtypes
-        n_users = 5
-        n_projects = 3
-        n_audios = 20
-        n_annotations = 10
+        n_users = 10
+        n_projects = 20
+        n_audios = 100
+        n_annotations = 1000
 
         # create users
-        for i in n_users:
+        for i in range(n_users):
             user = User()
             user.name = f"user{i}"
             db.session.add(user)
 
         # create tagtypes
-        for i in n_tagtypes:
+        for i in range(n_tagtypes):
             tagtype = TagType()
             tagtype.name = f"tagtype{i}"
             db.session.add(tagtype)
             db.session.flush()
 
             # create tags
-            for j in n_tags:
+            for j in range(n_tags):
                 tag = Tag()
                 tag.name = f"tag{i}_{j}"
                 tag.tagtype_id = tagtype.id
                 db.session.add(tag)
+                db.session.flush()
+
+        # create audios
+        for i in range(n_audios):
+            audio = Audio()
+            audio.rel_path = create_random_wav(app.config['DUMMY_DATA_FOLDER'])
+            db.session.add(audio)
+            db.session.flush()
+
+        db.session.commit()
 
 
+def create_random_wav(outdir, sr=11025, duration=2):
+
+    x = np.random.rand(duration * sr) * 2 - 1
+    filename = str(uuid.uuid4()) + ".wav"
+    wavio.write(os.path.join(outdir, filename), x, sr, sampwidth=2)
+    return filename
+    
 
 
-
-
-        

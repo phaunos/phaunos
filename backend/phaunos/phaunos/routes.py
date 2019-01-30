@@ -1,6 +1,9 @@
 from flask import Blueprint
+from flask import send_from_directory
+from flask import current_app
 #from phaunos.phaunos.models import Annotation, Audio, Project, Tag, TagType, VisualizationType
 from phaunos.phaunos.models import (
+        Audio,
         Tag,
         TagType,
         VisualizationType,
@@ -57,3 +60,7 @@ def tag_detail(id):
     return tag_schema.jsonify(tag)
 
 
+@phaunos_api.route('/audio/<filename>')
+def audio_file(filename):
+    return send_from_directory('/app/dummy_data',
+            filename)

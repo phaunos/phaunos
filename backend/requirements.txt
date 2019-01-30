@@ -9,3 +9,5 @@ marshmallow-sqlalchemy==0.15.0
 flask-shell-ipython==0.4.0
 ipython==7.2.0
 pytest==4.1.1
+numpy==1.16.0
+wavio==0.0.4
