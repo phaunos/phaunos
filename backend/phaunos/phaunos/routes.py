@@ -1,17 +1,24 @@
-from flask import Blueprint
-from flask import send_from_directory
-from flask import current_app
-#from phaunos.phaunos.models import Annotation, Audio, Project, Tag, TagType, VisualizationType
+from flask import (
+    Blueprint,
+    send_from_directory,
+    current_app,
+    make_response,
+    request,
+    jsonify
+)
 from phaunos.phaunos.models import (
         Audio,
         Tag,
-        TagType,
+        Tagset,
+        Project,
         VisualizationType,
-        tagtype_schema,
-        tagtypes_schema,
+        tagset_schema,
+        tagsets_schema,
         tag_schema,
         tags_schema,
         )
+
+from phaunos.models import db
 
 
 phaunos_api = Blueprint('phaunos_api', __name__)
@@ -22,8 +29,8 @@ phaunos_api = Blueprint('phaunos_api', __name__)
 #- all: /projects (pagination)
 #- by id: /projects/<id>
 
-# get tagtypes (with tags)
-#- by project: /tagtypes?project_id=<id>
+# get tagsets (with tags)
+#- by project: /tagsets?project_id=<id>
 
 # get audios
 #- by id: /audios/<id>
@@ -40,19 +47,27 @@ phaunos_api = Blueprint('phaunos_api', __name__)
 
 
 
-@phaunos_api.route('/api/phaunos/tagtypes', methods=['GET'])
-def tagtypes():
-    return tagtypes_schema.jsonify(TagType.query.all())
+@phaunos_api.route('/api/phaunos/tagsets', methods=['GET'])
+def tagsets():
+    page = request.args.get('page', 1, type=int)
+    project_id = request.args.get('project_id', None, type=int)
+    if project_id == None:
+        return make_response(jsonify({'error': 'Not found'}), 404)
+    tagsets = Tagset.query.filter(Tagset.projects.any(Project.id==project_id))
+    return tagsets_schema.jsonify(tagsets)
 
-@phaunos_api.route('/api/phaunos/tagtypes/<id>', methods=['GET'])
-def tagtype_detail(id):
-    tagtype = TagType.query.get(id)
-    return tagtype_schema.jsonify(tagtype)
+@phaunos_api.route('/api/phaunos/tagsets/<id>', methods=['GET'])
+def tagset_detail(id):
+    tagset = Tagset.query.get(id)
+    return tagset_schema.jsonify(tagset)
 
 
 @phaunos_api.route('/api/phaunos/tags')
 def tags():
-    return tags_schema.jsonify(Tag.query.all())
+    page = request.args.get('page', 1, type=int)
+    tags = Tag.query.paginate(
+        page, 10, False)
+    return tags_schema.jsonify(tags.items)
 
 @phaunos_api.route('/api/phaunos/tags/<id>')
 def tag_detail(id):
@@ -60,7 +75,7 @@ def tag_detail(id):
     return tag_schema.jsonify(tag)
 
 
-@phaunos_api.route('/audio/<filename>')
-def audio_file(filename):
-    return send_from_directory('/app/dummy_data',
+@phaunos_api.route('/files/<path:filename>')
+def uploaded(filename):
+    return send_from_directory('/app/files',
             filename)

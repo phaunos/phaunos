@@ -1,7 +1,7 @@
 import pytest
 from phaunos import create_app
 from phaunos.models import db
-from phaunos.phaunos.models import TagType
+from phaunos.phaunos.models import TagSet
 
 
 @pytest.fixture(scope='module')
@@ -20,11 +20,11 @@ def test_db(test_app):
     db.drop_all()
 
 
-def test_add_tagtype(test_db):
-    tt = TagType()
-    tt.name = "tagtype1"
+def test_add_tagset(test_db):
+    tt = TagSet()
+    tt.name = "tagset1"
     db.session.add(tt)
     db.session.commit()
-    assert len(TagType.query.all()) == 1
+    assert len(TagSet.query.all()) == 1
 
     

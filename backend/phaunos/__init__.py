@@ -6,8 +6,11 @@ from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 import numpy as np
 import wavio
+import pathlib
+import shutil
 import uuid
 import os
+import random
 
 
 #######################
@@ -26,10 +29,10 @@ import os
 
 def create_app(testing=False):
     app = Flask(__name__)
-    app.config.from_pyfile("config.py")
+    app.config.from_pyfile('config.py')
     
     if testing:
-        app.config["TESTING"] = True
+        app.config['TESTING'] = True
 
     initialize_extensions(app)
     app.register_blueprint(phaunos_api)
@@ -49,6 +52,41 @@ def initialize_extensions(app):
 ################
 
 def register_cli(app):
+    
+    @app.cli.command()
+    def delete_dummy_data():
+        
+        from phaunos.models import db
+        from phaunos.phaunos.models import (
+                Project,
+                Tag,
+                Tagset,
+                Audio,
+                Annotation
+                )
+        from phaunos.user.models import User
+
+        # delete dummy Tag
+        for item in Tag.query.filter(Tag.name.startswith("dummy")).all():
+            db.session.delete(item)
+        
+        # delete dummy Tagset
+        for item in Tagset.query.filter(Tagset.name.startswith("dummy")).all():
+            db.session.delete(item)
+        
+        # delete dummy Audio
+        for item in Audio.query.filter(Audio.rel_path.startswith("dummy")).all():
+            db.session.delete(item)
+        
+        # delete dummy Project
+        for item in Project.query.filter(Project.name.startswith("dummy")).all():
+            db.session.delete(item)
+
+        db.session.commit()
+
+        # delete dummy data folder
+        shutil.rmtree(app.config['DUMMY_DATA_FOLDER'], ignore_errors=True)
+
 
     @app.cli.command()
     def put_dummy_data():
@@ -57,60 +95,79 @@ def register_cli(app):
         from phaunos.phaunos.models import (
                 Project,
                 Tag,
-                TagType,
+                Tagset,
                 Audio,
                 Annotation
                 )
         from phaunos.user.models import User
 
-        app.config["DUMMY_DATA_FOLDER"] = '/app/dummy_data'
-        print(app.config["DUMMY_DATA_FOLDER"])
-        print(app)
+        
+        # create directory
+        pathlib.Path(app.config['DUMMY_DATA_FOLDER']).mkdir(parents=True, exist_ok=True)
+        
 
-        n_tagtypes = 30
-        n_tags = 5 # per tagtypes
+        n_tagsets = 30
+        n_tags = 80 # per tagsets
         n_users = 10
         n_projects = 20
         n_audios = 100
+        n_audios_per_project = 10
+        n_tags_per_tagset = 4
+        n_tagsets_per_project = 5
         n_annotations = 1000
 
         # create users
         for i in range(n_users):
             user = User()
-            user.name = f"user{i}"
+            user.name = f'dummy_user{i}'
             db.session.add(user)
 
-        # create tagtypes
-        for i in range(n_tagtypes):
-            tagtype = TagType()
-            tagtype.name = f"tagtype{i}"
-            db.session.add(tagtype)
+        # create tags
+        for i in range(n_tags):
+            tag = Tag()
+            tag.name = f'dummy_tag{i}'
+            db.session.add(tag)
             db.session.flush()
 
-            # create tags
-            for j in range(n_tags):
-                tag = Tag()
-                tag.name = f"tag{i}_{j}"
-                tag.tagtype_id = tagtype.id
-                db.session.add(tag)
-                db.session.flush()
+        tags = Tag.query.all()
+        # create tagsets
+        for i in range(n_tagsets):
+            tagset = Tagset()
+            tagset.name = f'dummy_tagset{i}'
+            tagset.tags.extend(random.sample(tags, n_tags_per_tagset))
+            db.session.add(tagset)
+            db.session.flush()
 
         # create audios
         for i in range(n_audios):
+            rel_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], str(uuid.uuid4()) + '.wav')
+            create_random_wav(os.path.join(app.config['DUMMY_DATA_FOLDER'], rel_path))
             audio = Audio()
-            audio.rel_path = create_random_wav(app.config['DUMMY_DATA_FOLDER'])
+            audio.rel_path = rel_path
             db.session.add(audio)
+            db.session.flush()
+
+        audios = Audio.query.all()
+        tagsets = Tagset.query.all()
+        # create projects
+        for i in range(n_projects):
+            project = Project()
+            project.name = f'dummy_project{i}'
+            project.audio_root_url = "http://127.0.0.1:5000"
+            project.allow_regions = random.choice([True, False])
+            # get random audios
+            project.audios.extend(random.sample(audios, n_audios_per_project))
+            # get random tagsets
+            project.tagsets.extend(random.sample(tagsets, n_tagsets_per_project))
+            db.session.add(project)
             db.session.flush()
 
         db.session.commit()
 
 
-def create_random_wav(outdir, sr=11025, duration=2):
-
+def create_random_wav(filename, sr=11025, duration=2):
     x = np.random.rand(duration * sr) * 2 - 1
-    filename = str(uuid.uuid4()) + ".wav"
-    wavio.write(os.path.join(outdir, filename), x, sr, sampwidth=2)
-    return filename
+    wavio.write(filename, x, sr, sampwidth=2)
     
 
 

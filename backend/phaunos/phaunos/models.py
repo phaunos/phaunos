@@ -11,32 +11,49 @@ class VisualizationType(enum.Enum):
     WAVEFORM = enum.auto()
     SPECTROGRAM = enum.auto()
 
-class TagType(db.Model):
 
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String, unique=True, nullable=False)
-    tags = db.relationship('Tag',
-            backref='tagtype',
-            lazy=True,
-            cascade='all')
+audio_project_rel = db.Table('audio_project_rel',
+        db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
+        db.Column('audio_id', db.Integer, db.ForeignKey('audio.id'), primary_key=True)
+        )
 
-    def __repr__(self):
-        return '<name {}>'.format(self.name)
 
+tagset_project_rel = db.Table('tagset_project_rel',
+        db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
+        db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True)
+        )
+
+tag_tagset_rel = db.Table('tag_tagset_rel',
+        db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True),
+        db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
+        )
 
 class Tag(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
-    tagtype_id = db.Column(db.Integer, db.ForeignKey(TagType.id), nullable=False)
     name = db.Column(db.String, nullable=False)
     annotations = db.relationship('Annotation',
             backref='tag',
             lazy=True,
             cascade='all')
-    __table_args__ = (UniqueConstraint('name', 'tagtype_id'),)
 
     def __repr__(self):
         return '<name {}>'.format(self.name)
+
+class Tagset(db.Model):
+
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String, unique=True, nullable=False)
+    tags = db.relationship('Tag',
+            secondary=tag_tagset_rel,
+            lazy=True,
+            backref=db.backref('tagsets', lazy=True))
+
+    def __repr__(self):
+        return '<name {}>'.format(self.name)
+
+
+
 
 
 class Audio(db.Model):
@@ -50,18 +67,6 @@ class Audio(db.Model):
 
     def __repr__(self):
         return '<id {}>'.format(self.rel_path)
-
-audio_project_rel = db.Table('audio_project_rel',
-        db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
-        db.Column('audio_id', db.Integer, db.ForeignKey('audio.id'), primary_key=True)
-        )
-
-
-tag_project_rel = db.Table('tag_project_rel',
-        db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
-        db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
-        )
-
 
 class Annotation(db.Model):
 
@@ -77,6 +82,7 @@ class Annotation(db.Model):
         return '<id {}>'.format(self.id)
 
 
+
 class Project(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
@@ -85,8 +91,8 @@ class Project(db.Model):
     visualization_type = db.Column(ENUM(VisualizationType), default=VisualizationType.SPECTROGRAM, nullable=False)
     allow_regions = db.Column(db.Boolean, nullable=False)
     n_annotations_per_file = db.Column(db.Integer, nullable=True)
-    tags = db.relationship('Tag',
-            secondary=tag_project_rel,
+    tagsets = db.relationship('Tagset',
+            secondary=tagset_project_rel,
             lazy=True,
             backref=db.backref('projects', lazy=True))
     audios = db.relationship('Audio',
@@ -110,7 +116,6 @@ class Project(db.Model):
     def __repr__(self):
         return '<name {}>'.format(self.name)
 
-
 class TagSchema(ma.ModelSchema):
     class Meta:
         model = Tag
@@ -119,14 +124,14 @@ tag_schema = TagSchema(strict=True)
 tags_schema = TagSchema(many=True, strict=True)
 
 
-class TagTypeSchema(ma.ModelSchema):
+class TagsetSchema(ma.ModelSchema):
     class Meta:
         strict = True
-        model = TagType
+        model = Tagset
     tags = ma.Nested(TagSchema, many=True)
 
-tagtype_schema = TagTypeSchema(strict=True)
-tagtypes_schema = TagTypeSchema(many=True, strict=True)
+tagset_schema = TagsetSchema(strict=True)
+tagsets_schema = TagsetSchema(many=True, strict=True)
 
 
 class AudioSchema(ma.ModelSchema):
@@ -145,8 +150,6 @@ class AnnotationSchema(ma.ModelSchema):
 
 annotation_schema = AnnotationSchema(strict=True)
 annotation_schema = AnnotationSchema(many=True, strict=True)
-
-
 
 
 #@listens_for(Project, 'after_delete')
