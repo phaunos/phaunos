@@ -2,14 +2,23 @@ import enum
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.event import listens_for
 from sqlalchemy.dialects.postgresql import ENUM
-from phaunos.models import db, ma
+from phaunos.shared import db, ma
 from phaunos.user.models import User
+from sqlalchemy.ext.declarative import declarative_base
+from marshmallow import fields
+
+Base = declarative_base()
 
 
 @enum.unique
 class VisualizationType(enum.Enum):
     WAVEFORM = enum.auto()
     SPECTROGRAM = enum.auto()
+
+@enum.unique
+class Role(enum.Enum):
+    ADMIN = enum.auto()
+    MEMBER = enum.auto()
 
 
 audio_project_rel = db.Table('audio_project_rel',
@@ -27,6 +36,19 @@ tag_tagset_rel = db.Table('tag_tagset_rel',
         db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True),
         db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
         )
+
+
+class UserProjectRel(db.Model):
+    __tablename__ = 'user_project_rel'
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'), nullable=False)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    user_role = db.Column(ENUM(Role), nullable=False)
+
+    user = db.relationship('User', backref=db.backref("projects"), cascade='all')
+    project = db.relationship('Project', backref=db.backref("users"), cascade='all')
+
 
 class Tag(db.Model):
 
@@ -76,7 +98,7 @@ class Annotation(db.Model):
     tag_id = db.Column(db.Integer, db.ForeignKey(Tag.id), nullable=False)
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     audio_id = db.Column(db.Integer, db.ForeignKey('audio.id'), nullable=False)
-    user_id  = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    user_id  = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'), nullable=False)
 
     def __repr__(self):
         return '<id {}>'.format(self.id)
@@ -116,40 +138,56 @@ class Project(db.Model):
     def __repr__(self):
         return '<name {}>'.format(self.name)
 
+
+class EnumField(fields.Field):
+
+    def __init__(self, enumtype, *args, **kwargs):
+        super(EnumField, self).__init__(*args, **kwargs)
+        self._enumtype = enumtype
+
+    def _serialize(self, value, attr, obj, **kwargs):
+        return value.name
+
+    def _deserialize(self, value, attr, data, **kwargs):
+        return self._enumtype[value]
+
+
+class ProjectSchema(ma.ModelSchema):
+    visualization_type = EnumField(VisualizationType)
+    class Meta:
+        model = Project
+        exclude = ('tagsets', 'audios', 'annotations', 'users')
+project_schema = ProjectSchema()
+
+
 class TagSchema(ma.ModelSchema):
     class Meta:
         model = Tag
-
-tag_schema = TagSchema(strict=True)
-tags_schema = TagSchema(many=True, strict=True)
+        exclude = ('annotations', 'tagsets')
+#tag_schema = TagSchema()
 
 
 class TagsetSchema(ma.ModelSchema):
     class Meta:
-        strict = True
         model = Tagset
+        exclude = ('projects',)
     tags = ma.Nested(TagSchema, many=True)
-
-tagset_schema = TagsetSchema(strict=True)
-tagsets_schema = TagsetSchema(many=True, strict=True)
+tagset_schema = TagsetSchema()
 
 
 class AudioSchema(ma.ModelSchema):
     class Meta:
-        strict = True
         model = Audio
+        exclude = ('projects', 'annotations')
 
-audio_schema = AudioSchema(strict=True)
-audios_schema = AudioSchema(many=True, strict=True)
+audio_schema = AudioSchema()
 
 
 class AnnotationSchema(ma.ModelSchema):
     class Meta:
-        strict = True
         model = Annotation
 
-annotation_schema = AnnotationSchema(strict=True)
-annotation_schema = AnnotationSchema(many=True, strict=True)
+annotation_schema = AnnotationSchema()
 
 
 #@listens_for(Project, 'after_delete')

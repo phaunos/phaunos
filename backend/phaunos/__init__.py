@@ -2,8 +2,12 @@ import click
 from flask.cli import with_appcontext
 from flask import Flask
 from phaunos.phaunos.routes import phaunos_api
+from phaunos.user.routes import user_api
+from phaunos.token.routes import token_api
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
+from flask_jwt_extended import JWTManager
+from flask_mail import Mail
 import numpy as np
 import wavio
 import pathlib
@@ -11,6 +15,9 @@ import shutil
 import uuid
 import os
 import random
+from flask import jsonify
+from phaunos.shared import db, ma, jwt
+from phaunos.email_utils import mail
 
 
 #######################
@@ -36,14 +43,17 @@ def create_app(testing=False):
 
     initialize_extensions(app)
     app.register_blueprint(phaunos_api)
+    app.register_blueprint(user_api)
+    app.register_blueprint(token_api)
     register_cli(app)
     return app
 
 
 def initialize_extensions(app):
-    from phaunos.models import db, ma
     db.init_app(app)
     ma.init_app(app)
+    mail.init_app(app)
+    jwt.init_app(app)
     migrate = Migrate(app, db)
 
 
@@ -56,7 +66,7 @@ def register_cli(app):
     @app.cli.command()
     def delete_dummy_data():
         
-        from phaunos.models import db
+        from phaunos.shared import db
         from phaunos.phaunos.models import (
                 Project,
                 Tag,
@@ -65,6 +75,10 @@ def register_cli(app):
                 Annotation
                 )
         from phaunos.user.models import User
+        
+        # delete dummy User
+        for item in User.query.filter(User.username.startswith("dummy")).all():
+            db.session.delete(item)
 
         # delete dummy Tag
         for item in Tag.query.filter(Tag.name.startswith("dummy")).all():
@@ -82,6 +96,10 @@ def register_cli(app):
         for item in Project.query.filter(Project.name.startswith("dummy")).all():
             db.session.delete(item)
 
+        # delete dummy UserProjectRel
+        for UserProjectRel.query.join(UserProjectRel.project).filter(Project.name.startswith('dummy')).all()
+            db.session.delete(item)
+
         db.session.commit()
 
         # delete dummy data folder
@@ -91,7 +109,7 @@ def register_cli(app):
     @app.cli.command()
     def put_dummy_data():
         
-        from phaunos.models import db
+        from phaunos.shared import db
         from phaunos.phaunos.models import (
                 Project,
                 Tag,
@@ -118,9 +136,9 @@ def register_cli(app):
 
         # create users
         for i in range(n_users):
-            user = User()
-            user.name = f'dummy_user{i}'
+            user = User(f'dummy_user{i}', f'user{i}@gmail.com', f'user{i}')
             db.session.add(user)
+            db.session.flush()
 
         # create tags
         for i in range(n_tags):
@@ -169,5 +187,4 @@ def create_random_wav(filename, sr=11025, duration=2):
     x = np.random.rand(duration * sr) * 2 - 1
     wavio.write(filename, x, sr, sampwidth=2)
     
-
 
