@@ -20,16 +20,6 @@ from phaunos.shared import db, ma, jwt
 from phaunos.email_utils import mail
 
 
-#######################
-#### Configuration ####
-#######################
-
-# Create the instances of the Flask extensions (flask-sqlalchemy, flask-login, etc.) in
-# the global scope, but without any arguments passed in.  These instances are not attached
-# to the application at this point.
-#db = SQLAlchemy()
-
-
 ######################################
 #### Application Factory Function ####
 ######################################
