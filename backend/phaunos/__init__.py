@@ -97,7 +97,7 @@ def register_cli(app):
             db.session.delete(item)
 
         # delete dummy UserProjectRel
-        for UserProjectRel.query.join(UserProjectRel.project).filter(Project.name.startswith('dummy')).all()
+        for item in UserProjectRel.query.join(UserProjectRel.project).filter(Project.name.startswith('dummy')).all():
             db.session.delete(item)
 
         db.session.commit()
