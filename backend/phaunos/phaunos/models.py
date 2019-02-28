@@ -26,7 +26,6 @@ audio_project_rel = db.Table('audio_project_rel',
         db.Column('audio_id', db.Integer, db.ForeignKey('audio.id'), primary_key=True)
         )
 
-
 tagset_project_rel = db.Table('tagset_project_rel',
         db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
         db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True)
@@ -40,14 +39,12 @@ tag_tagset_rel = db.Table('tag_tagset_rel',
 
 class UserProjectRel(db.Model):
     __tablename__ = 'user_project_rel'
-    id = db.Column(db.Integer, primary_key=True)
-
-    user_id = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'), nullable=False)
-    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'), primary_key=True)
+    project_id = db.Column(db.Integer, db.ForeignKey('project.id'), primary_key=True)
     user_role = db.Column(ENUM(Role), nullable=False)
 
-    user = db.relationship('User', backref=db.backref("projects"), cascade='all')
-    project = db.relationship('Project', backref=db.backref("users"), cascade='all')
+    user = db.relationship('User', backref=db.backref('user_project_rel', cascade='all'))
+    project = db.relationship('Project', backref=db.backref('user_project_rel', cascade='all'))
 
 
 class Tag(db.Model):
@@ -66,10 +63,12 @@ class Tagset(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, unique=True, nullable=False)
-    tags = db.relationship('Tag',
-            secondary=tag_tagset_rel,
-            lazy=True,
-            backref=db.backref('tagsets', lazy=True))
+    tags = db.relationship(
+        'Tag',
+        secondary=tag_tagset_rel,
+        lazy=True,
+        backref='tagsets'
+    )
 
     def __repr__(self):
         return '<name {}>'.format(self.name)
@@ -82,10 +81,12 @@ class Audio(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     rel_path = db.Column(db.String, unique=True, nullable=False)
-    annotations = db.relationship('Annotation',
-            backref='audio',
-            lazy=True,
-            cascade='all')
+    annotations = db.relationship(
+        'Annotation',
+        backref='audio',
+        cascade='all',
+        lazy=True
+    )
 
     def __repr__(self):
         return '<id {}>'.format(self.rel_path)
@@ -99,6 +100,7 @@ class Annotation(db.Model):
     project_id = db.Column(db.Integer, db.ForeignKey('project.id'), nullable=False)
     audio_id = db.Column(db.Integer, db.ForeignKey('audio.id'), nullable=False)
     user_id  = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'), nullable=False)
+    user = db.relationship(User, backref=db.backref('annotations', cascade='all'))
 
     def __repr__(self):
         return '<id {}>'.format(self.id)
@@ -121,10 +123,12 @@ class Project(db.Model):
             secondary=audio_project_rel,
             lazy=True,
             backref=db.backref('projects', lazy=True))
-    annotations = db.relationship('Annotation',
-            backref='project',
-            lazy=True,
-            cascade='all')
+    annotations = db.relationship(
+        'Annotation',
+        lazy=True,
+        cascade='all',
+        backref='project'
+    )
     audios_filename = db.Column(db.String, nullable=True)
     annotations_filename = db.Column(db.String, nullable=True)
 
@@ -156,7 +160,11 @@ class ProjectSchema(ma.ModelSchema):
     visualization_type = EnumField(VisualizationType)
     class Meta:
         model = Project
-        exclude = ('tagsets', 'audios', 'annotations', 'users')
+        exclude = (
+            'tagsets',
+            'audios',
+            'annotations',
+            'user_project_rel')
 project_schema = ProjectSchema()
 
 
@@ -188,6 +196,7 @@ class AnnotationSchema(ma.ModelSchema):
         model = Annotation
 
 annotation_schema = AnnotationSchema()
+
 
 
 #@listens_for(Project, 'after_delete')

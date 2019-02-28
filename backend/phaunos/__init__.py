@@ -58,13 +58,22 @@ def register_cli(app):
         
         from phaunos.shared import db
         from phaunos.phaunos.models import (
-                Project,
-                Tag,
-                Tagset,
-                Audio,
-                Annotation
-                )
+            Project,
+            UserProjectRel,
+            Tag,
+            Tagset,
+            Audio,
+            Annotation)
         from phaunos.user.models import User
+        
+        
+        # delete dummy Annotation
+        for item in UserProjectRel.query.join(UserProjectRel.project).filter(Project.name.startswith('dummy')).all():
+            db.session.delete(item)
+        
+        # delete dummy UserProjectRel
+        for item in UserProjectRel.query.join(UserProjectRel.project).filter(Project.name.startswith('dummy')).all():
+            db.session.delete(item)
         
         # delete dummy User
         for item in User.query.filter(User.username.startswith("dummy")).all():
@@ -86,10 +95,7 @@ def register_cli(app):
         for item in Project.query.filter(Project.name.startswith("dummy")).all():
             db.session.delete(item)
 
-        # delete dummy UserProjectRel
-        for item in UserProjectRel.query.join(UserProjectRel.project).filter(Project.name.startswith('dummy')).all():
-            db.session.delete(item)
-
+        
         db.session.commit()
 
         # delete dummy data folder
@@ -101,12 +107,13 @@ def register_cli(app):
         
         from phaunos.shared import db
         from phaunos.phaunos.models import (
-                Project,
-                Tag,
-                Tagset,
-                Audio,
-                Annotation
-                )
+            Project,
+            UserProjectRel,
+            Role,
+            Tag,
+            Tagset,
+            Audio,
+            Annotation)
         from phaunos.user.models import User
 
         
@@ -114,15 +121,19 @@ def register_cli(app):
         pathlib.Path(app.config['DUMMY_DATA_FOLDER']).mkdir(parents=True, exist_ok=True)
         
 
-        n_tagsets = 30
-        n_tags = 80 # per tagsets
-        n_users = 10
+        n_tagsets = 20
+        n_tags = 80
+        n_users = 100
         n_projects = 20
         n_audios = 100
-        n_audios_per_project = 10
+        n_audios_per_project = 20
+        n_users_per_project = 5
         n_tags_per_tagset = 4
         n_tagsets_per_project = 5
-        n_annotations = 1000
+        n_annotators_per_audio = 3
+        n_annotations_per_annotator_per_audio = 5
+        audio_duration = 5
+        min_annotation_size=0.2
 
         # create users
         for i in range(n_users):
@@ -149,7 +160,7 @@ def register_cli(app):
         # create audios
         for i in range(n_audios):
             rel_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], str(uuid.uuid4()) + '.wav')
-            create_random_wav(os.path.join(app.config['DUMMY_DATA_FOLDER'], rel_path))
+            create_random_wav(os.path.join(app.config['DUMMY_DATA_FOLDER'], rel_path), duration=5)
             audio = Audio()
             audio.rel_path = rel_path
             db.session.add(audio)
@@ -157,18 +168,55 @@ def register_cli(app):
 
         audios = Audio.query.all()
         tagsets = Tagset.query.all()
+        users = User.query.all()
+        
         # create projects
         for i in range(n_projects):
-            project = Project()
-            project.name = f'dummy_project{i}'
-            project.audio_root_url = "http://127.0.0.1:5000"
-            project.allow_regions = random.choice([True, False])
-            # get random audios
-            project.audios.extend(random.sample(audios, n_audios_per_project))
-            # get random tagsets
-            project.tagsets.extend(random.sample(tagsets, n_tagsets_per_project))
-            db.session.add(project)
+            p = Project()
+            p.name = f'dummy_project{i}'
+            p.audio_root_url = "http://127.0.0.1:5000"
+            p.allow_regions = random.choice([True, False])
+            # add random audios
+            p.audios.extend(random.sample(audios, n_audios_per_project))
+            # add random tagsets
+            p.tagsets.extend(random.sample(tagsets, n_tagsets_per_project))
+            db.session.add(p)
             db.session.flush()
+            # add users
+            p_users = random.sample(users, n_users_per_project)
+            has_admin = False
+            for u in p_users:
+                upr = UserProjectRel()
+                upr.project_id = p.id
+                upr.user_id =u.id
+                if has_admin:
+                    upr.user_role = Role.MEMBER
+                else:
+                    upr.user_role = Role.ADMIN
+                    has_admin = True
+                db.session.add(upr)
+                db.session.flush()
+
+
+        projects = Project.query.all()
+
+        # create annotations
+        for p in projects:
+            audios = Audio.query.filter(Audio.projects.any(Project.id==p.id)).all()
+            user_ids = [upr.user_id for upr in p.user_project_rel]
+            for audio in audios:
+                annotators = User.query.filter(User.id.in_(user_ids)).all()
+                for annotator in annotators:
+                    for i in range(n_annotations_per_annotator_per_audio):
+                        for tagset in p.tagsets:
+                            annotation = Annotation()
+                            annotation.start_time = random.uniform(0, audio_duration - min_annotation_size)
+                            annotation.end_time = random.uniform(annotation.start_time + min_annotation_size, audio_duration)
+                            annotation.tag_id = random.choice(tagset.tags).id
+                            annotation.project_id = p.id
+                            annotation.audio_id = audio.id
+                            annotation.user_id = annotator.id
+                            db.session.add(annotation)
 
         db.session.commit()
 

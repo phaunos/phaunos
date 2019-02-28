@@ -38,23 +38,33 @@ phaunos_api = Blueprint('phaunos_api', __name__)
 
 
 # get project (without audios and annotations) 
-#+ all: /projects (pagination)
-#+ by id: /projects/<id> (only for admins)
+# all: /projects
+# by id: /projects/<id> (only for project admins)
 
 # get tagsets (with tags)
-#+ by project: /tagsets?project_id=<id>
+# /tagsets
+# params:
+#   project_id=<id> (required)
 
 # get audios
-#+ by project: /audios?project_id=<id> (pagination) (only for admins)
+# /audios
+# params:
+#   project_id=<id> (required) (only for project admins)
 
 # get annotations
-#- by audio: /annotations?audio_id=<id> (pagination)
-#- by user: /annotations?user_id=<id> (pagination)
-#- by tag: /annotations?tag_id=<id> (pagination)
+# /annotations (all if the user connected is project admin. Only those made by the user connected otherwise.)
+# -filter by project: project_id=<id> (required)
+#- filter by audio: audio_id=<id>
+#- filter by user: user_id=<id>
+#- filter by tag: tag_id=<id>
 
 # get users
 #- by id: /users/<id>
-#- by project: /users?project_id=<id> (pagination)
+#- by project: /users?project_id=<id>
+
+
+
+
 
 @phaunos_api.route('/')
 def home():
@@ -75,7 +85,7 @@ def project_detail(id):
     user = get_current_user()
     project = Project.query.get(id)
     if not project:
-        return build_response(404, 'Project not found')
+        return build_response(404, f'Project with id {project_id} not found')
     if not UserProjectRel.query.filter(
             UserProjectRel.project_id==id,
             UserProjectRel.user_id==user.id,
@@ -89,29 +99,82 @@ def project_detail(id):
 def tagsets():
     page = request.args.get('page', 1, type=int)
     project_id = request.args.get('project_id', None, type=int)
-    if project_id == None:
-        return build_response(404, 'Project not found')
-    tagsets = Tagset.query.filter(Tagset.projects.any(Project.id==project_id)).paginate(page, 10, False)
-    return tagset_schema.dumps(tagsets.items, many=True)
+
+    # Filter by project (required)
+    if not project_id:
+        return build_response(422, 'Missing project_id parameter.')
+    if not Project.query.get(project_id):
+        return build_response(404, f'Project with id {project_id} not found')
+    subquery = Tagset.query.filter(Tagset.projects.any(Project.id==project_id))
+
+    return tagset_schema.dumps(
+        subquery.paginate(page, 10, False).items,
+        many=True)
 
 
 @phaunos_api.route('/api/phaunos/audios', methods=['GET'])
 @jwt_required
 def audios():
+    page = request.args.get('page', 1, type=int)
     user = get_current_user()
     project_id = request.args.get('project_id', None, type=int)
-    if project_id == None:
-        return build_response(404, 'Project not found')
+
+    # Filter by project (required)
+    if not project_id:
+        return build_response(422, 'Missing project_id parameter.')
+    if not Project.query.get(project_id):
+        return build_response(404, f'Project with id {project_id} not found')
+    subquery = Audio.query.filter(Audio.projects.any(Project.id==project_id))
+
+    # Check user is project admin
     if not UserProjectRel.query.filter(
             UserProjectRel.project_id==project_id,
             UserProjectRel.user_id==user.id,
             UserProjectRel.user_role==Role.ADMIN).first():
         return build_response(403, 'Not allowed.')
-    page = request.args.get('page', 1, type=int)
-    audios = Audio.query.filter(Audio.projects.any(Project.id==project_id)).paginate(page, 10, False)
-    return audio_schema.dumps(audios.items, many=True)
+
+    return audio_schema.dumps(
+        subquery.paginate(page, 10, False).items,
+        many=True)
 
 
+@phaunos_api.route('/api/phaunos/annotations', methods=['GET'])
+@jwt_required
+def annotations():
+    user = get_current_user()
+    project_id = request.args.get('project_id', None, type=int)
+    audio_id = request.args.get('audio_id', None, type=int)
+    tag_id = request.args.get('tag_id', None, type=int)
+
+    # Filter by project (required)
+    if not project_id:
+        return build_response(422, 'Missing project_id parameter.')
+    if not Project.query.get(project_id):
+        return build_response(404, f'Project with id {project_id} not found')
+    subquery = Annotation.query.filter(Annotation.project_id==project_id)
+    
+    # Filter by audio
+    if audio_id:
+        if not Audio.query.get(audio_id):
+            return build_response(404, f'Audio with id {audio_id} not found')
+        subquery = subquery.filter(Annotation.audio_id==audio_id)
+
+    # Filter by tag
+    if tag_id:
+        if not Tag.query.get(tag_id):
+            return build_response(404, f'Tag with id {tag_id} not found')
+        subquery = subquery.filter(Annotation.tag_id==tag_id)
+
+    # If the user is not project admin, only get his annotations
+    if not UserProjectRel.query.filter(
+            UserProjectRel.project_id==project_id,
+            UserProjectRel.user_id==user.id,
+            UserProjectRel.user_role==Role.ADMIN).first():
+        subquery = subquery.filter(Annotation.user_id==user.id)
+
+    return annotation_schema.dumps(
+        subquery.paginate(page, 10, False).items,
+        many=True)
 
 @phaunos_api.route('/files/<path:filename>')
 def uploaded(filename):
