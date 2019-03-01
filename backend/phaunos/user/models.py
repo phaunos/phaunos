@@ -13,12 +13,14 @@ class User(db.Model):
     username = db.Column(db.String(20), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(255), nullable=False)
+    is_admin = db.Column(db.Boolean, default=False, nullable=False)
     confirmed_on = db.Column(db.DateTime, nullable=True)
 
-    def __init__(self, username, email, password):
+    def __init__(self, username, email, password, is_admin=False):
         self.username = username
         self.email = email
         self.password = generate_password_hash(password, method='sha256')
+        self.is_admin = is_admin
 
     def save(self):
         db.session.add(self)

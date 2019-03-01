@@ -79,17 +79,14 @@ def projects():
     return project_schema.dumps(projects.items, many=True)
 
 
-@phaunos_api.route('/api/phaunos/projects/<int:id>', methods=['GET'])
+@phaunos_api.route('/api/phaunos/projects/<int:project_id>', methods=['GET'])
 @jwt_required
-def project_detail(id):
+def project_detail(project_id):
     user = get_current_user()
-    project = Project.query.get(id)
+    project = Project.query.get(project_id)
     if not project:
         return build_response(404, f'Project with id {project_id} not found')
-    if not UserProjectRel.query.filter(
-            UserProjectRel.project_id==id,
-            UserProjectRel.user_id==user.id,
-            UserProjectRel.user_role==Role.ADMIN).first():
+    if not (user.is_admin or user.is_project_admin(project_id)):
         return build_response(403, 'Not allowed.')
     return project_schema.dumps(project)
 
@@ -127,10 +124,7 @@ def audios():
     subquery = Audio.query.filter(Audio.projects.any(Project.id==project_id))
 
     # Check user is project admin
-    if not UserProjectRel.query.filter(
-            UserProjectRel.project_id==project_id,
-            UserProjectRel.user_id==user.id,
-            UserProjectRel.user_role==Role.ADMIN).first():
+    if not (user.is_admin or user.is_project_admin(project_id)):
         return build_response(403, 'Not allowed.')
 
     return audio_schema.dumps(
@@ -166,10 +160,7 @@ def annotations():
         subquery = subquery.filter(Annotation.tag_id==tag_id)
 
     # If the user is not project admin, only get his annotations
-    if not UserProjectRel.query.filter(
-            UserProjectRel.project_id==project_id,
-            UserProjectRel.user_id==user.id,
-            UserProjectRel.user_role==Role.ADMIN).first():
+    if not (user.is_admin or user.is_project_admin(project_id)):
         subquery = subquery.filter(Annotation.user_id==user.id)
 
     return annotation_schema.dumps(

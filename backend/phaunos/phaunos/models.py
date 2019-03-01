@@ -17,24 +17,28 @@ class VisualizationType(enum.Enum):
 
 @enum.unique
 class Role(enum.Enum):
-    ADMIN = enum.auto()
-    MEMBER = enum.auto()
+    PROJECTADMIN = enum.auto()
+    PROJECTMEMBER = enum.auto()
 
 
-audio_project_rel = db.Table('audio_project_rel',
-        db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
-        db.Column('audio_id', db.Integer, db.ForeignKey('audio.id'), primary_key=True)
-        )
+audio_project_rel = db.Table(
+    'audio_project_rel',
+    db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
+    db.Column('audio_id', db.Integer, db.ForeignKey('audio.id'), primary_key=True)
+)
 
-tagset_project_rel = db.Table('tagset_project_rel',
-        db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
-        db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True)
-        )
+tagset_project_rel = db.Table(
+    'tagset_project_rel',
+    db.Column('project_id', db.Integer, db.ForeignKey('project.id'), primary_key=True),
+    db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True)
+)
 
-tag_tagset_rel = db.Table('tag_tagset_rel',
-        db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True),
-        db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
-        )
+tag_tagset_rel = db.Table(
+    'tag_tagset_rel',
+    db.Column('tagset_id', db.Integer, db.ForeignKey('tagset.id'), primary_key=True),
+    db.Column('tag_id', db.Integer, db.ForeignKey('tag.id'), primary_key=True)
+)
+
 
 
 class UserProjectRel(db.Model):
@@ -45,6 +49,20 @@ class UserProjectRel(db.Model):
 
     user = db.relationship('User', backref=db.backref('user_project_rel', cascade='all'))
     project = db.relationship('Project', backref=db.backref('user_project_rel', cascade='all'))
+
+
+# bound new method to User
+def is_project_admin(self, project_id):
+    return True if UserProjectRel.query.filter(
+        UserProjectRel.project_id==project_id,
+        UserProjectRel.user_id==self.id,
+        UserProjectRel.user_role==Role.PROJECTADMIN).first() else False
+User.is_project_admin = is_project_admin
+
+
+
+
+
 
 
 class Tag(db.Model):

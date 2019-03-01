@@ -190,9 +190,9 @@ def register_cli(app):
                 upr.project_id = p.id
                 upr.user_id =u.id
                 if has_admin:
-                    upr.user_role = Role.MEMBER
+                    upr.user_role = Role.PROJECTMEMBER
                 else:
-                    upr.user_role = Role.ADMIN
+                    upr.user_role = Role.PROJECTADMIN
                     has_admin = True
                 db.session.add(upr)
                 db.session.flush()
