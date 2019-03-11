@@ -10,7 +10,6 @@ from flask_jwt_extended import JWTManager
 from flask_mail import Mail
 import numpy as np
 import wavio
-import pathlib
 import shutil
 import uuid
 import os
@@ -18,6 +17,17 @@ import random
 from flask import jsonify
 from phaunos.shared import db, ma, jwt
 from phaunos.email_utils import mail
+from phaunos.admin import admin
+#from flask_admin import Admin
+from flask_admin.contrib.sqla import ModelView
+from phaunos.phaunos.models import Tagset, Tag, Project, Annotation
+from phaunos.user.models import User
+from phaunos.admin.views import (
+    TagAdminView,
+    TagsetAdminView,
+    ProjectAdminView,
+    UserAdminView,
+)
 
 
 ######################################
@@ -41,10 +51,17 @@ def create_app(testing=False):
 
 def initialize_extensions(app):
     db.init_app(app)
+    migrate = Migrate(app, db)
     ma.init_app(app)
     mail.init_app(app)
     jwt.init_app(app)
-    migrate = Migrate(app, db)
+
+    admin.init_app(app)
+    with app.app_context():
+        admin.add_view(TagAdminView(Tag, db.session))
+        admin.add_view(TagsetAdminView(Tagset, db.session))
+        admin.add_view(ProjectAdminView(Project, db.session))
+        admin.add_view(UserAdminView(User, db.session))
 
 
 ################
@@ -88,7 +105,7 @@ def register_cli(app):
             db.session.delete(item)
         
         # delete dummy Audio
-        for item in Audio.query.filter(Audio.rel_path.startswith("dummy")).all():
+        for item in Audio.query.filter(Audio.path.startswith("dummy")).all():
             db.session.delete(item)
         
         # delete dummy Project
@@ -116,10 +133,6 @@ def register_cli(app):
             Annotation)
         from phaunos.user.models import User
 
-        
-        # create directory
-        pathlib.Path(app.config['DUMMY_DATA_FOLDER']).mkdir(parents=True, exist_ok=True)
-        
 
         n_tagsets = 20
         n_tags = 80
@@ -147,8 +160,8 @@ def register_cli(app):
             tag.name = f'dummy_tag{i}'
             db.session.add(tag)
             db.session.flush()
-
         tags = Tag.query.all()
+
         # create tagsets
         for i in range(n_tagsets):
             tagset = Tagset()
@@ -158,28 +171,55 @@ def register_cli(app):
             db.session.flush()
 
         # create audios
+        audio_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], 'audio_files')
+        os.makedirs(audio_path, exist_ok=True)
         for i in range(n_audios):
-            rel_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], str(uuid.uuid4()) + '.wav')
-            create_random_wav(os.path.join(app.config['DUMMY_DATA_FOLDER'], rel_path), duration=5)
+            path = os.path.join(audio_path, str(uuid.uuid4()) + '.wav')
+            create_random_wav(path, duration=5)
             audio = Audio()
-            audio.rel_path = rel_path
+            audio.path = path
             db.session.add(audio)
             db.session.flush()
+
+
+
 
         audios = Audio.query.all()
         tagsets = Tagset.query.all()
         users = User.query.all()
         
+        # create audio list files
+        audiolist_filenames = []
+        audiolist_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], 'audiolist_files')
+        os.makedirs(audiolist_path, exist_ok=True)
+        for i in range(n_projects):
+            audiolist_filename = os.path.join(audiolist_path,  str(uuid.uuid4()) + '.csv')
+            with open(audiolist_filename, 'w') as audiolist_file:
+                for a in random.sample(audios, n_audios_per_project):
+                    audiolist_file.write(a.path + '\n')
+            audiolist_filenames.append(audiolist_filename)
+        
+        
+        # create tag list files
+        taglist_filenames = []
+        taglist_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], 'taglist_files')
+        os.makedirs(taglist_path, exist_ok=True)
+        for i in range(n_projects):
+            taglist_filename = os.path.join(taglist_path,  str(uuid.uuid4()) + '.csv')
+            with open(taglist_filename, 'w') as taglist_file:
+                for tagset in random.sample(tagsets, n_tagsets_per_project):
+                    for tag in tagset.tags:
+                        taglist_file.write(tagset.name + ';' + tag.name + '\n')
+            taglist_filenames.append(taglist_filename)
+
         # create projects
         for i in range(n_projects):
             p = Project()
             p.name = f'dummy_project{i}'
             p.audio_root_url = "http://127.0.0.1:5000"
             p.allow_regions = random.choice([True, False])
-            # add random audios
-            p.audios.extend(random.sample(audios, n_audios_per_project))
-            # add random tagsets
-            p.tagsets.extend(random.sample(tagsets, n_tagsets_per_project))
+            p.audiolist_filename = random.choice(audiolist_filenames)
+            p.taglist_filename = random.choice(taglist_filenames)
             db.session.add(p)
             db.session.flush()
             # add users

@@ -10,10 +10,11 @@ from flask import (
 )
 from flask_jwt_extended import create_refresh_token, create_access_token
 from phaunos.shared import db
+from phaunos.phaunos.models import user_schema
 import re
 from marshmallow import ValidationError
 from werkzeug.security import check_password_hash
-from .models import User, user_schema
+from .models import User
 from ..email_utils import send_confirmation_email, generate_confirmation_token, confirm_token
 from ..utils import build_response
 from sqlalchemy import exc

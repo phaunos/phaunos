@@ -1,11 +1,16 @@
+import os
+import re
 import enum
+from flask import current_app
 from sqlalchemy.schema import UniqueConstraint
 from sqlalchemy.event import listens_for
 from sqlalchemy.dialects.postgresql import ENUM
 from phaunos.shared import db, ma
 from phaunos.user.models import User
 from sqlalchemy.ext.declarative import declarative_base
-from marshmallow import fields
+from marshmallow import fields, validate, pre_load
+from sqlalchemy import event
+
 
 Base = declarative_base()
 
@@ -71,7 +76,7 @@ class Tag(db.Model):
     name = db.Column(db.String, nullable=False)
     annotations = db.relationship('Annotation',
             backref='tag',
-            lazy=True,
+            lazy='noload',
             cascade='all')
 
     def __repr__(self):
@@ -98,7 +103,7 @@ class Tagset(db.Model):
 class Audio(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
-    rel_path = db.Column(db.String, unique=True, nullable=False)
+    path = db.Column(db.String, unique=True, nullable=False)
     annotations = db.relationship(
         'Annotation',
         backref='audio',
@@ -107,7 +112,7 @@ class Audio(db.Model):
     )
 
     def __repr__(self):
-        return '<id {}>'.format(self.rel_path)
+        return '<id {}>'.format(self.path)
 
 class Annotation(db.Model):
 
@@ -129,9 +134,10 @@ class Project(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String, unique=True, nullable=False)
-    audio_root_url = db.Column(db.String, nullable=False)
     visualization_type = db.Column(ENUM(VisualizationType), default=VisualizationType.SPECTROGRAM, nullable=False)
     allow_regions = db.Column(db.Boolean, nullable=False)
+    audiolist_filename = db.Column(db.String, nullable=False)
+    taglist_filename = db.Column(db.String, nullable=False)
     n_annotations_per_file = db.Column(db.Integer, nullable=True)
     tagsets = db.relationship('Tagset',
             secondary=tagset_project_rel,
@@ -147,8 +153,6 @@ class Project(db.Model):
         cascade='all',
         backref='project'
     )
-    audios_filename = db.Column(db.String, nullable=True)
-    annotations_filename = db.Column(db.String, nullable=True)
 
     @property
     def is_completed(self):
@@ -216,6 +220,87 @@ class AnnotationSchema(ma.ModelSchema):
 annotation_schema = AnnotationSchema()
 
 
+class UserSchema(ma.Schema):
+    id = fields.Int(dump_only=True)
+    username = fields.Str(
+        required=True,
+        validate=[validate.Length(min=4, max=20)],
+    )
+    email = fields.Str(
+        required=True,
+        validate=validate.Email(error='Not a valid email address'),
+    )
+    password = fields.Str(
+        required=True,
+        validate=[validate.Length(min=6, max=36)],
+        load_only=True,
+    )
+
+    # Clean up data
+    @pre_load
+    def process_input(self, data):
+        data['email'] = data['email'].lower().strip()
+        return data
+
+    # We add a post_dump hook to add an envelope to responses
+#    @post_dump(pass_many=True)
+#    def wrap(self, data, many):
+#        key = 'users' if many else 'user'
+#        return {
+#            key: data,
+#        }
+
+
+user_schema = UserSchema()
+
+
+
+###################
+# Event listeners #
+###################
+
+
+@event.listens_for(db.session, 'transient_to_pending')
+def get_audiolist_from_file(session, instance):
+    if isinstance(instance, Project):
+        with open(os.path.join(
+                current_app.config['UPLOAD_FOLDER'],
+                'audiolist_filenames',
+                instance.audiolist_filename), 'r') as audiolist_file:
+            for line in audiolist_file:
+                _path = line.strip()
+                audio = Audio.query.filter(Audio.path==_path).first()
+                if not audio:
+                    audio = Audio()
+                    audio.path = _path 
+                if not audio in instance.audios:
+                    instance.audios.append(audio) 
+
+
+@event.listens_for(db.session, 'transient_to_pending')
+def get_taglist_from_file(session, instance):    
+    if isinstance(instance, Project):
+        with open(os.path.join(
+                current_app.config['UPLOAD_FOLDER'],
+                'taglist_filenames',
+                instance.taglist_filename), 'r') as taglist_file:
+            for line in taglist_file:
+                line = line.strip()
+                tagset_name, tag_name = line.split(',')
+                tagset = Tagset.query.filter(Tagset.name==tagset_name).first()
+                if not tagset:
+                    tagset = Tagset()
+                    tagset.name = tagset_name
+                    db.session.flush(tagset)
+                tag = Tag.query.filter(Tag.name==tag_name).filter(Tag.tagsets.any(Tagset.name==tagset_name)).first()
+                if not tag:
+                    tag = Tag()
+                    tag.name = tag_name
+                    tagset.tags.append(tag)
+                if not tagset in instance.tagsets:
+                    instance.tagsets.append(tagset)
+
+
 
 #@listens_for(Project, 'after_delete')
 #def del_file(mapper, connection, target):
@@ -233,3 +318,27 @@ annotation_schema = AnnotationSchema()
 #            pass
 #
 #
+
+
+
+##############
+# Validation #
+##############
+
+
+def validate_audiolist(instream):
+    error = ''
+    is_empty = True
+    audiolist = []
+    for i, line in enumerate(instream):
+        is_empty = False
+        line = line.decode().strip()
+        audiolist.append(line)
+        if not re.match(r'.+(wav|mp3)$', line):
+            error = 'Wrong audio extension in line {}: {}'.format(i+1, line.decode('utf-8'))
+            break
+    instream.seek(0)
+    if is_empty:
+        error = 'Audio list file is empty.'
+    return error
+

@@ -15,12 +15,16 @@ from phaunos.phaunos.models import (
     Role,
     VisualizationType,
     UserProjectRel,
+    Annotation,
     project_schema,
+    annotation_schema,
     tagset_schema,
 #    tag_schema,
     audio_schema,
+    user_schema
 )
 
+from phaunos.user.models import User
 
 from flask_jwt_extended import (
     fresh_jwt_required,
@@ -63,12 +67,35 @@ phaunos_api = Blueprint('phaunos_api', __name__)
 #- by project: /users?project_id=<id>
 
 
-
-
-
 @phaunos_api.route('/')
 def home():
     return 'Home'
+
+
+@phaunos_api.route('/api/phaunos/users', methods=['GET'])
+@jwt_required
+def users():
+    page = request.args.get('page', 1, type=int)
+    user = get_current_user()
+    project_id = request.args.get('project_id', None, type=int)
+    if project_id:
+        if not Project.query.get(project_id):
+            return build_response(404, f'Project with id {project_id} not found')
+        if not (user.is_admin or user.is_project_admin(project_id)):
+            return build_response(403, 'Not allowed.')
+        query = db.session.query(User).join(UserProjectRel) \
+            .filter(UserProjectRel.project_id==project_id)
+    elif not user.is_admin:
+        return build_response(403, 'Not allowed.')
+    else:
+        query = User.query
+    return user_schema.dumps(query.paginate(page, 10, False).items, many=True)
+    
+
+
+
+
+
 
 
 @phaunos_api.route('/api/phaunos/projects', methods=['GET'])
@@ -135,6 +162,7 @@ def audios():
 @phaunos_api.route('/api/phaunos/annotations', methods=['GET'])
 @jwt_required
 def annotations():
+    page = request.args.get('page', 1, type=int)
     user = get_current_user()
     project_id = request.args.get('project_id', None, type=int)
     audio_id = request.args.get('audio_id', None, type=int)
@@ -166,6 +194,7 @@ def annotations():
     return annotation_schema.dumps(
         subquery.paginate(page, 10, False).items,
         many=True)
+
 
 @phaunos_api.route('/files/<path:filename>')
 def uploaded(filename):
