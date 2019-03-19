@@ -11,4 +11,4 @@ from .views import (
 )
 
 
-admin = Admin(name='phaunos', template_mode='bootstrap3')
+admin = Admin(name='phaunos', template_mode='bootstrap3', base_template='admin/phaunos_base.html')

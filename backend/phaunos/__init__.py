@@ -1,9 +1,7 @@
 import click
+import datetime
 from flask.cli import with_appcontext
 from flask import Flask
-from phaunos.phaunos.routes import phaunos_api
-from phaunos.user.routes import user_api
-from phaunos.token.routes import token_api
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
 from flask_jwt_extended import JWTManager
@@ -15,7 +13,8 @@ import uuid
 import os
 import random
 from flask import jsonify
-from phaunos.shared import db, ma, jwt
+from flask_login import LoginManager
+from phaunos.shared import db, ma, jwt, bp_api, bp_admin_auth
 from phaunos.email_utils import mail
 from phaunos.admin import admin
 #from flask_admin import Admin
@@ -28,11 +27,17 @@ from phaunos.admin.views import (
     ProjectAdminView,
     UserAdminView,
 )
+from phaunos.user import api
+from phaunos.phaunos import api
 
 
 ######################################
 #### Application Factory Function ####
 ######################################
+
+
+#login_manager = LoginManager()
+
 
 def create_app(testing=False):
     app = Flask(__name__)
@@ -42,9 +47,8 @@ def create_app(testing=False):
         app.config['TESTING'] = True
 
     initialize_extensions(app)
-    app.register_blueprint(phaunos_api)
-    app.register_blueprint(user_api)
-    app.register_blueprint(token_api)
+    app.register_blueprint(bp_api)
+    app.register_blueprint(bp_admin_auth)
     register_cli(app)
     return app
 
@@ -55,6 +59,7 @@ def initialize_extensions(app):
     ma.init_app(app)
     mail.init_app(app)
     jwt.init_app(app)
+#    login_manager.init_app(app)
 
     admin.init_app(app)
     with app.app_context():
@@ -151,13 +156,16 @@ def register_cli(app):
         # create users
         for i in range(n_users):
             user = User(f'dummy_user{i}', f'user{i}@gmail.com', f'user{i}')
+            user.confirmed_on = datetime.datetime.now()
             db.session.add(user)
             db.session.flush()
+        users = User.query.all()
 
         # create tags
         for i in range(n_tags):
             tag = Tag()
             tag.name = f'dummy_tag{i}'
+            tag.created_by = random.choice(users)
             db.session.add(tag)
             db.session.flush()
         tags = Tag.query.all()
@@ -167,8 +175,10 @@ def register_cli(app):
             tagset = Tagset()
             tagset.name = f'dummy_tagset{i}'
             tagset.tags.extend(random.sample(tags, n_tags_per_tagset))
+            tagset.created_by = random.choice(users)
             db.session.add(tagset)
             db.session.flush()
+        tagsets = Tagset.query.all()
 
         # create audios
         audio_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], 'audio_files')
@@ -178,15 +188,10 @@ def register_cli(app):
             create_random_wav(path, duration=5)
             audio = Audio()
             audio.path = path
+            audio.created_by = random.choice(users)
             db.session.add(audio)
             db.session.flush()
-
-
-
-
         audios = Audio.query.all()
-        tagsets = Tagset.query.all()
-        users = User.query.all()
         
         # create audio list files
         audiolist_filenames = []
@@ -209,7 +214,7 @@ def register_cli(app):
             with open(taglist_filename, 'w') as taglist_file:
                 for tagset in random.sample(tagsets, n_tagsets_per_project):
                     for tag in tagset.tags:
-                        taglist_file.write(tagset.name + ';' + tag.name + '\n')
+                        taglist_file.write(tagset.name + ',' + tag.name + '\n')
             taglist_filenames.append(taglist_filename)
 
         # create projects
@@ -220,6 +225,7 @@ def register_cli(app):
             p.allow_regions = random.choice([True, False])
             p.audiolist_filename = random.choice(audiolist_filenames)
             p.taglist_filename = random.choice(taglist_filenames)
+            p.created_by = random.choice(users)
             db.session.add(p)
             db.session.flush()
             # add users

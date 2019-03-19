@@ -1,5 +1,4 @@
 from flask import (
-    Blueprint,
     send_from_directory,
     current_app,
     make_response,
@@ -33,12 +32,9 @@ from flask_jwt_extended import (
     get_current_user
 )
 
-from phaunos.shared import db
+from phaunos.shared import db, bp_api
 from phaunos.utils import build_response
 
-
-
-phaunos_api = Blueprint('phaunos_api', __name__)
 
 
 # get project (without audios and annotations) 
@@ -67,12 +63,12 @@ phaunos_api = Blueprint('phaunos_api', __name__)
 #- by project: /users?project_id=<id>
 
 
-@phaunos_api.route('/')
+@bp_api.route('/')
 def home():
     return 'Home'
 
 
-@phaunos_api.route('/api/phaunos/users', methods=['GET'])
+@bp_api.route('/api/phaunos/users', methods=['GET'])
 @jwt_required
 def users():
     page = request.args.get('page', 1, type=int)
@@ -80,13 +76,13 @@ def users():
     project_id = request.args.get('project_id', None, type=int)
     if project_id:
         if not Project.query.get(project_id):
-            return build_response(404, f'Project with id {project_id} not found')
+            return build_response(f'Project with id {project_id} not found'), 404
         if not (user.is_admin or user.is_project_admin(project_id)):
-            return build_response(403, 'Not allowed.')
+            return build_response('Not allowed.'), 403
         query = db.session.query(User).join(UserProjectRel) \
             .filter(UserProjectRel.project_id==project_id)
     elif not user.is_admin:
-        return build_response(403, 'Not allowed.')
+        return build_response('Not allowed.'), 403
     else:
         query = User.query
     return user_schema.dumps(query.paginate(page, 10, False).items, many=True)
@@ -98,7 +94,7 @@ def users():
 
 
 
-@phaunos_api.route('/api/phaunos/projects', methods=['GET'])
+@bp_api.route('/api/phaunos/projects', methods=['GET'])
 #@jwt_required
 def projects():
     page = request.args.get('page', 1, type=int)
@@ -106,19 +102,21 @@ def projects():
     return project_schema.dumps(projects.items, many=True)
 
 
-@phaunos_api.route('/api/phaunos/projects/<int:project_id>', methods=['GET'])
+@bp_api.route('/api/phaunos/projects/<int:project_id>', methods=['GET'])
 @jwt_required
 def project_detail(project_id):
     user = get_current_user()
     project = Project.query.get(project_id)
+    current_app.logger.info(user)
+    current_app.logger.info(project)
     if not project:
-        return build_response(404, f'Project with id {project_id} not found')
+        return build_response(f'Project with id {project_id} not found'), 404
     if not (user.is_admin or user.is_project_admin(project_id)):
-        return build_response(403, 'Not allowed.')
+        return build_response('Not allowed.'), 403
     return project_schema.dumps(project)
 
 
-@phaunos_api.route('/api/phaunos/tagsets', methods=['GET'])
+@bp_api.route('/api/phaunos/tagsets', methods=['GET'])
 #@jwt_required
 def tagsets():
     page = request.args.get('page', 1, type=int)
@@ -126,9 +124,9 @@ def tagsets():
 
     # Filter by project (required)
     if not project_id:
-        return build_response(422, 'Missing project_id parameter.')
+        return build_response('Missing project_id parameter.'), 422
     if not Project.query.get(project_id):
-        return build_response(404, f'Project with id {project_id} not found')
+        return build_response(f'Project with id {project_id} not found'), 404
     subquery = Tagset.query.filter(Tagset.projects.any(Project.id==project_id))
 
     return tagset_schema.dumps(
@@ -136,7 +134,7 @@ def tagsets():
         many=True)
 
 
-@phaunos_api.route('/api/phaunos/audios', methods=['GET'])
+@bp_api.route('/api/phaunos/audios', methods=['GET'])
 @jwt_required
 def audios():
     page = request.args.get('page', 1, type=int)
@@ -145,21 +143,21 @@ def audios():
 
     # Filter by project (required)
     if not project_id:
-        return build_response(422, 'Missing project_id parameter.')
+        return build_response('Missing project_id parameter.'), 422
     if not Project.query.get(project_id):
-        return build_response(404, f'Project with id {project_id} not found')
+        return build_response(f'Project with id {project_id} not found'), 404
     subquery = Audio.query.filter(Audio.projects.any(Project.id==project_id))
 
     # Check user is project admin
     if not (user.is_admin or user.is_project_admin(project_id)):
-        return build_response(403, 'Not allowed.')
+        return build_response('Not allowed.'), 403
 
     return audio_schema.dumps(
         subquery.paginate(page, 10, False).items,
         many=True)
 
 
-@phaunos_api.route('/api/phaunos/annotations', methods=['GET'])
+@bp_api.route('/api/phaunos/annotations', methods=['GET'])
 @jwt_required
 def annotations():
     page = request.args.get('page', 1, type=int)
@@ -170,21 +168,21 @@ def annotations():
 
     # Filter by project (required)
     if not project_id:
-        return build_response(422, 'Missing project_id parameter.')
+        return build_response('Missing project_id parameter.'), 422
     if not Project.query.get(project_id):
-        return build_response(404, f'Project with id {project_id} not found')
+        return build_response(f'Project with id {project_id} not found'), 404
     subquery = Annotation.query.filter(Annotation.project_id==project_id)
     
     # Filter by audio
     if audio_id:
         if not Audio.query.get(audio_id):
-            return build_response(404, f'Audio with id {audio_id} not found')
+            return build_response(f'Audio with id {audio_id} not found'), 404
         subquery = subquery.filter(Annotation.audio_id==audio_id)
 
     # Filter by tag
     if tag_id:
         if not Tag.query.get(tag_id):
-            return build_response(404, f'Tag with id {tag_id} not found')
+            return build_response(f'Tag with id {tag_id} not found'), 404
         subquery = subquery.filter(Annotation.tag_id==tag_id)
 
     # If the user is not project admin, only get his annotations
@@ -196,7 +194,7 @@ def annotations():
         many=True)
 
 
-@phaunos_api.route('/files/<path:filename>')
+@bp_api.route('/files/<path:filename>')
 def uploaded(filename):
     return send_from_directory('/app/files',
             filename)
