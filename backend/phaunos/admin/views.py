@@ -1,12 +1,13 @@
 import os
 import re
-from flask import current_app, make_response
+from flask import current_app, make_response, url_for
+from markupsafe import Markup
 from flask_admin.contrib.sqla import ModelView
 import uuid
 from werkzeug.datastructures import FileStorage
 from wtforms.validators import ValidationError
 from wtforms.fields import SelectMultipleField
-from flask_admin import BaseView
+from flask_admin import AdminIndexView, BaseView
 from flask_admin.contrib import sqla
 from flask_admin.form import Select2Widget, FileUploadField
 
@@ -23,41 +24,49 @@ from flask_jwt_extended import (
     verify_jwt_refresh_token_in_request,
     create_access_token,
     set_access_cookies,
-    unset_jwt_cookies
-
+    unset_jwt_cookies,
 )
+from flask_jwt_extended.exceptions import NoAuthorizationError
 from jwt import ExpiredSignatureError
 
 
 
-class PhaunosModelView(ModelView):
+class PhaunosBaseView(BaseView):
     def render(self, template, **kwargs):
         try:
             verify_jwt_in_request()
-            kwargs['current_user'] = get_current_user()
-            resp = make_response(super(PhaunosModelView, self).render(template, **kwargs))
+            self._template_args['current_user'] = get_current_user()
+            resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
 
         except ExpiredSignatureError:
             # if the access token has expired, create new non-fresh token
             current_app.logger.info("Access token has expired.")
             try:
                 verify_jwt_refresh_token_in_request()
-                kwargs['current_user'] = get_current_user()
+                self._template_args['current_user'] = get_current_user()
                 access_token = create_access_token(identity=get_jwt_identity(), fresh=False)
-                resp = make_response(super(PhaunosModelView, self).render(template, **kwargs))
+                resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
                 set_access_cookies(resp, access_token)
             except ExpiredSignatureError:
                 # if the refresh token has expired, user must login again
                 current_app.logger.info("Refresh token has expired")
-                resp = make_response(super(PhaunosModelView, self).render(template, **kwargs))
+                resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
                 unset_jwt_cookies(resp)
-                # now send to login
+        except NoAuthorizationError:
+            current_app.logger.info("No authorization token.")
+            resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
         return resp
 
 
+class PhaunosModelView(PhaunosBaseView, ModelView):
+    pass
 
 
-class UserAdminView(ModelView):
+class PhaunosAdminIndexView(PhaunosBaseView, AdminIndexView):
+    pass
+
+
+class UserAdminView(PhaunosModelView):
     column_exclude_list = ['password',]
     form_excluded_columns = ['annotations', 'user_project_rel']
     form_widget_args = {
@@ -100,7 +109,7 @@ class TagAdminView(PhaunosModelView):
     }
 
 
-class TagsetAdminView(ModelView):
+class TagsetAdminView(PhaunosModelView):
     form_widget_args = {
         'projects':{
             'disabled': True
@@ -108,8 +117,29 @@ class TagsetAdminView(ModelView):
     }
 
 
-class ProjectAdminView(ModelView):
-    form_excluded_columns = ['annotations', 'user_project_rel']
+class ProjectAdminView(PhaunosModelView):
+    
+    column_list = ['name', 'created_by', 'num_annotations']
+    
+
+    def _get_annotations(view, context, model, name):
+
+        current_app.logger.info("_get_annotations")
+        current_app.logger.info(get_current_user())
+
+        _html = '''
+            <form action="{url}" method="get">
+                <input id="project_id" name="project_id"  type="hidden" value="{project_id}">
+                <input id="web" name="web"  type="hidden" value=1>
+                <button type='submit'>Download annotations</button>
+            </form
+        '''.format(url=url_for('bp_api.annotations'), project_id=model.id)
+
+        return Markup(_html)
+
+    column_formatters = {
+        'num_annotations': _get_annotations
+    }
     
     def get_create_form(self):
         form = super(ProjectAdminView, self).get_create_form()

@@ -1,0 +1,18 @@
+<div id="auth_container">
+    {% if not current_user %}
+    <div>
+    <form id="login">
+        <input type="text" placeholder="Username" name="username" value="{{
+        request.form.username }}">
+        <input type="password" placeholder="Password" name="password" value="{{
+        request.form.password }}">
+        <input class="btn btn-default" type="submit" value="Login">
+    </form>
+    <div id="error" class="error"></div>
+    </div>
+    {% else %}
+    <div>Logged as {{ current_user.username }}. 
+    <a id="logout" style="cursor: pointer; margin-left:10px;">Logout</a>
+    </div>
+    {% endif %}
+</div>

@@ -2,6 +2,7 @@ from flask import (
     send_from_directory,
     current_app,
     make_response,
+    Response,
     request,
     render_template,
     jsonify
@@ -160,6 +161,7 @@ def audios():
 @bp_api.route('/api/phaunos/annotations', methods=['GET'])
 @jwt_required
 def annotations():
+    web = request.args.get('web', 0, type=int)
     page = request.args.get('page', 1, type=int)
     user = get_current_user()
     project_id = request.args.get('project_id', None, type=int)
@@ -187,11 +189,18 @@ def annotations():
 
     # If the user is not project admin, only get his annotations
     if not (user.is_admin or user.is_project_admin(project_id)):
-        subquery = subquery.filter(Annotation.user_id==user.id)
+        subquery = subquery.filter(Annotation.created_by_id==user.id)
 
-    return annotation_schema.dumps(
-        subquery.paginate(page, 10, False).items,
-        many=True)
+
+    if web:
+        data = subquery.all()
+        return Response(
+            data,
+            mimetype='application/json',
+            headers={'Content-Disposition':'attachment;filename=annotations.json'})
+    else:
+        data = subquery.paginate(page, 10, False).items
+        return annotation_schema.dumps(data, many=True)
 
 
 @bp_api.route('/files/<path:filename>')

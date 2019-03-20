@@ -101,7 +101,7 @@ def login():
     data = request.json
     current_app.logger.info(data)
 
-    set_cookies = request.args.get('set_cookies', 0, type=int)
+    web = request.args.get('web', 0, type=int)
 
 
     user = User.query.filter(User.username==data['username']).first()
@@ -115,7 +115,7 @@ def login():
     if check_password_hash(user.password, data['password']):
         access_token = create_access_token(identity = data['username'], fresh=True)
         refresh_token = create_refresh_token(identity = data['username'])
-        if set_cookies:
+        if web:
             resp = build_response('', {'username': f'{user.username}'})
             set_access_cookies(resp, access_token)
             set_refresh_cookies(resp, refresh_token)

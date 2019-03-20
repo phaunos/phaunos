@@ -1,15 +1,17 @@
 {% extends 'admin/base.html' %}
 
 {% block head %}
+    <link rel="stylesheet" type="text/css" href="{{ url_for('static', filename='css/admin.css') }}">
     <script src="http://code.jquery.com/jquery-1.8.3.min.js"></script>
     <script type="text/javascript">
-        var login_url = "{{ url_for('bp_api.login', set_cookies=1) }}";
+        var login_url = "{{ url_for('bp_api.login', web=1) }}";
+        var logout_url = "{{ url_for('bp_api.logout') }}";
     </script>
     <script type="text/javascript" src="{{ url_for('static', filename='js/auth.js') }}"></script>
 {% endblock %}
 
 {% block access_control %}
-{% include 'admin/login_form.html' %}
+{% include 'admin/auth_container.html' %}
 {#
 {% if current_user.is_authenticated %}
 <div class="navbar-text btn-group pull-right">

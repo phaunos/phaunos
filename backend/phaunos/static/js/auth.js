@@ -9,8 +9,20 @@ $(document).ready(function() {
                 {"username": $('#login input[name=username]').val(),
                     "password": $('#login input[name=password]').val()}),
             success: function (data, textStatus, jqXHR) {
-                console.log(data["messages"]);  // display the returned data in the console.
-                $('#error').text(data["username"]);
+                location.reload();
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                $('#error').text(jqXHR.responseJSON["messages"][0]);
+            },
+        });
+        e.preventDefault(); // block the traditional submission of the form.
+    });
+    $('#logout').click(function (e) {
+        $.ajax({
+            type: "GET",
+            url: logout_url,
+            success: function (data, textStatus, jqXHR) {
+                location.reload();
             },
             error: function (jqXHR, textStatus, errorThrown) {
                 $('#error').text(jqXHR.responseJSON["messages"][0]);
