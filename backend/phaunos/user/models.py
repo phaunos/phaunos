@@ -27,6 +27,9 @@ class User(db.Model):
     def to_dict(self):
         return dict(username=self.username, email=self.email)
 
+    def __repr__(self):
+        return self.username
+
 
 @jwt.user_loader_callback_loader
 def user_loader_callback(identity):

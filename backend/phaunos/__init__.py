@@ -261,7 +261,7 @@ def register_cli(app):
                             annotation.tag_id = random.choice(tagset.tags).id
                             annotation.project_id = p.id
                             annotation.audio_id = audio.id
-                            annotation.user_id = annotator.id
+                            annotation.created_by_id = annotator.id
                             db.session.add(annotation)
 
         db.session.commit()

@@ -137,7 +137,7 @@ class Project(db.Model):
     allow_regions = db.Column(db.Boolean, nullable=False)
     audiolist_filename = db.Column(db.String, nullable=False)
     taglist_filename = db.Column(db.String, nullable=False)
-    n_annotations_per_file = db.Column(db.Integer, nullable=True)
+    min_annotations_per_file = db.Column(db.Integer, default=1, nullable=False)
     created_by_id = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'))
     created_by = db.relationship(User, backref=db.backref('projects', cascade='all'))
     tagsets = db.relationship('Tagset',
@@ -155,12 +155,30 @@ class Project(db.Model):
         backref='project'
     )
 
+    
     @property
-    def is_completed(self):
-        if (self.n_annotations_per_file and
-                self.annotations.count() >= self.audios.count() * self.n_annotations_per_file):
-            return True
-        return False
+    def n_annotations(self):
+        return len(self.annotations)
+
+    @property
+    def percentage_of_completion(self):
+
+        n_annotations = 0
+        
+        for audio_id in [audio.id for audio in self.audios]:
+            n_annotations += min(
+                len(db.session.query(Annotation.created_by_id).filter(Annotation.project_id==self.id).filter(Annotation.audio_id==audio_id).distinct().all()),
+                self.min_annotations_per_file
+            )
+
+        return n_annotations // (self.min_annotations_per_file * len(self.audios)) * 100
+
+#    @property
+#    def is_completed(self):
+#        if (self.n_annotations_per_file and
+#                self.annotations.count() >= self.audios.count() * self.n_annotations_per_file):
+#            return True
+#        return False
 
     def __repr__(self):
         return '<name {}>'.format(self.name)

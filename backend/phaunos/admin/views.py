@@ -122,18 +122,16 @@ class ProjectAdminView(PhaunosModelView):
     column_list = ['name', 'created_by', 'num_annotations']
     
 
-    def _get_annotations(view, context, model, name):
+    def _get_annotations(view, context, project, name):
 
-        current_app.logger.info("_get_annotations")
-        current_app.logger.info(get_current_user())
 
-        _html = '''
-            <form action="{url}" method="get">
+
+        _html = '''<form action="{url}" method="get">
                 <input id="project_id" name="project_id"  type="hidden" value="{project_id}">
                 <input id="web" name="web"  type="hidden" value=1>
                 <button type='submit'>Download annotations</button>
-            </form
-        '''.format(url=url_for('bp_api.annotations'), project_id=model.id)
+            </form> ({perc}% completed)
+        '''.format(url=url_for('bp_api.annotations'), project_id=project.id, perc=project.percentage_of_completion)
 
         return Markup(_html)
 
