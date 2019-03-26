@@ -283,8 +283,7 @@ user_schema = UserSchema()
 def get_audiolist_from_file(session, instance):
     if isinstance(instance, Project):
         with open(os.path.join(
-                current_app.config['UPLOAD_FOLDER'],
-                'audiolist_filenames',
+                current_app.config['FILE_FOLDER'],
                 instance.audiolist_filename), 'r') as audiolist_file:
             for line in audiolist_file:
                 _path = line.strip()
@@ -300,8 +299,7 @@ def get_audiolist_from_file(session, instance):
 def get_taglist_from_file(session, instance):    
     if isinstance(instance, Project):
         with open(os.path.join(
-                current_app.config['UPLOAD_FOLDER'],
-                'taglist_filenames',
+                current_app.config['FILE_FOLDER'],
                 instance.taglist_filename), 'r') as taglist_file:
             for line in taglist_file:
                 line = line.strip()
@@ -344,20 +342,33 @@ def get_taglist_from_file(session, instance):
 # Validation #
 ##############
 
+VALID_AUDIO_EXT = ['wav', 'mp3']
 
 def validate_audiolist(instream):
     error = ''
     is_empty = True
-    audiolist = []
     for i, line in enumerate(instream):
         is_empty = False
         line = line.decode().strip()
-        audiolist.append(line)
-        if not re.match(r'.+(wav|mp3)$', line):
-            error = 'Wrong audio extension in line {}: {}'.format(i+1, line.decode('utf-8'))
+        if not re.match(r'.+({})$'.format('|'.join(VALID_AUDIO_EXT)), line):
+            error = 'Wrong audio extension in line {}: {}. Only {} are accepted.'.format(i+1, line, ','.join(VALID_AUDIO_EXT))
             break
     instream.seek(0)
     if is_empty:
         error = 'Audio list file is empty.'
     return error
 
+
+def validate_taglist(instream):
+    error = ''
+    is_empty = True
+    for i, line in enumerate(instream):
+        is_empty = False
+        line = line.decode().strip()
+        if not re.match(r'^[a-zA-Z0-9_\s\?]+,[a-zA-Z0-9_\s]+$', line):
+            error = 'Wrong format in line {}: {}. Must be <tagsetname>,<tagname>.'.format(i+1, line)
+            break
+    instream.seek(0)
+    if is_empty:
+        error = 'Tag list file is empty.'
+    return error

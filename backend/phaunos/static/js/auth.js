@@ -6,8 +6,8 @@ $(document).ready(function() {
             dataType: "json",
             url: login_url,
             data: JSON.stringify(
-                {"username": $('#login input[name=username]').val(),
-                    "password": $('#login input[name=password]').val()}),
+                {"username": $('#login input[id=username]').val(),
+                    "password": $('#login input[id=password]').val()}),
             success: function (data, textStatus, jqXHR) {
                 location.reload();
             },

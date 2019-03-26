@@ -1,0 +1,20 @@
+{% extends 'admin/master.html' %}
+{% block body %}
+
+<div id="signup">
+    <h2>Sign up for a Phaunos account</h2>
+    <form id="signup">
+        <input type="text" placeholder="Username" name="username" value="{{
+        request.form.username }}">
+        <input type="text" placeholder="Email" name="email" value="{{
+        request.form.email }}">
+        <input type="password" placeholder="Password" name="password" value="{{
+        request.form.password }}">
+        <input type="password" placeholder="Confirm password" name="password_confirm" value="{{
+        request.form.password }}">
+        <input class="btn btn-default" type="submit" value="Signup">
+    </form>
+    <div id="error" class="error"></div>
+</div>
+
+{% endblock %}

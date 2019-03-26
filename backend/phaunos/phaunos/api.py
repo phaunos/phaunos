@@ -205,5 +205,7 @@ def annotations():
 
 @bp_api.route('/files/<path:filename>')
 def uploaded(filename):
-    return send_from_directory('/app/files',
-            filename)
+    return send_from_directory(
+        current_app.config['FILE_FOLDER'],
+        filename
+    )

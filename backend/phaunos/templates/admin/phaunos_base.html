@@ -11,7 +11,30 @@
 {% endblock %}
 
 {% block access_control %}
-{% include 'admin/auth_container.html' %}
+<div id="auth_container" class="navbar-right">
+    {% if not current_user %}
+    <form id="login" class="form-inline">
+        <div class="form-group">
+            <label class="sr-only" for="username">Username</label>
+            <input type="text" class="form-control" placeholder="Username" id="username" value="{{ request.form.username }}">
+        </div>
+        <div class="form-group">
+            <label class="sr-only" for="password">Password</label>
+            <input type="password" class="form-control" id="password" placeholder="Password" value="{{ request.form.password }}">
+        </div>
+        <button type="submit" class="btn btn-default">Submit</button>
+
+        <div class="form-group">
+            <a id="signup" href="{{ url_for('admin_signup.index') }}">Sign up</a>
+        </div>
+    </form>
+    <div id="error" class="text-danger"/>
+    {% else %}
+    <div id="logged">Logged as {{ current_user.username }}. 
+        <a id="logout" style="cursor: pointer; margin-left:10px;">Logout</a>
+    </div>
+    {% endif %}
+</div>
 {#
 {% if current_user.is_authenticated %}
 <div class="navbar-text btn-group pull-right">

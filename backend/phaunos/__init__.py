@@ -26,6 +26,7 @@ from phaunos.admin.views import (
     TagsetAdminView,
     ProjectAdminView,
     UserAdminView,
+    SignupView,
 )
 from phaunos.user import api
 from phaunos.phaunos import api
@@ -35,8 +36,6 @@ from phaunos.phaunos import api
 #### Application Factory Function ####
 ######################################
 
-
-#login_manager = LoginManager()
 
 
 def create_app(testing=False):
@@ -59,14 +58,14 @@ def initialize_extensions(app):
     ma.init_app(app)
     mail.init_app(app)
     jwt.init_app(app)
-#    login_manager.init_app(app)
 
     admin.init_app(app)
     with app.app_context():
-        admin.add_view(TagAdminView(Tag, db.session))
-        admin.add_view(TagsetAdminView(Tagset, db.session))
-        admin.add_view(ProjectAdminView(Project, db.session))
-        admin.add_view(UserAdminView(User, db.session))
+        admin.add_view(TagAdminView(Tag, db.session, endpoint='admin_tag'))
+        admin.add_view(TagsetAdminView(Tagset, db.session, endpoint='admin_tagset'))
+        admin.add_view(ProjectAdminView(Project, db.session, endpoint='admin_project'))
+        admin.add_view(UserAdminView(User, db.session, endpoint='admin_user'))
+        admin.add_view(SignupView(name='Signup', endpoint='admin_signup', url='signup'))
 
 
 ################
@@ -195,19 +194,19 @@ def register_cli(app):
         
         # create audio list files
         audiolist_filenames = []
-        audiolist_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], 'audiolist_files')
+        audiolist_path = os.path.join(app.config['FILE_FOLDER'], app.config['DUMMY_DATA_FOLDER'], 'audiolist_files')
         os.makedirs(audiolist_path, exist_ok=True)
         for i in range(n_projects):
             audiolist_filename = os.path.join(audiolist_path,  str(uuid.uuid4()) + '.csv')
             with open(audiolist_filename, 'w') as audiolist_file:
                 for a in random.sample(audios, n_audios_per_project):
                     audiolist_file.write(a.path + '\n')
-            audiolist_filenames.append(audiolist_filename)
+            audiolist_filenames.append(os.path.relpath(audiolist_filename, app.config['FILE_FOLDER']))
         
         
         # create tag list files
         taglist_filenames = []
-        taglist_path = os.path.join(app.config['DUMMY_DATA_FOLDER'], 'taglist_files')
+        taglist_path = os.path.join(app.config['FILE_FOLDER'], app.config['DUMMY_DATA_FOLDER'], 'taglist_files')
         os.makedirs(taglist_path, exist_ok=True)
         for i in range(n_projects):
             taglist_filename = os.path.join(taglist_path,  str(uuid.uuid4()) + '.csv')
@@ -215,7 +214,7 @@ def register_cli(app):
                 for tagset in random.sample(tagsets, n_tagsets_per_project):
                     for tag in tagset.tags:
                         taglist_file.write(tagset.name + ',' + tag.name + '\n')
-            taglist_filenames.append(taglist_filename)
+            taglist_filenames.append(os.path.relpath(taglist_filename, app.config['FILE_FOLDER']))
 
         # create projects
         for i in range(n_projects):

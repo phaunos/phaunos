@@ -1,18 +1,19 @@
 import os
 import re
-from flask import current_app, make_response, url_for
+from flask import current_app, make_response, url_for, request
 from markupsafe import Markup
 from flask_admin.contrib.sqla import ModelView
 import uuid
 from werkzeug.datastructures import FileStorage
 from wtforms.validators import ValidationError
-from wtforms.fields import SelectMultipleField
-from flask_admin import AdminIndexView, BaseView
+from wtforms.fields import Field, SelectMultipleField, StringField
+from wtforms.widgets import html_params, TextInput
+from flask_admin import AdminIndexView, BaseView, expose
 from flask_admin.contrib import sqla
-from flask_admin.form import Select2Widget, FileUploadField
+from flask_admin.form import Select2Widget, FileUploadField, rules
 
 from phaunos.phaunos.models import Tagset, Tag, Project, UserProjectRel, Audio
-from phaunos.phaunos.models import validate_audiolist
+from phaunos.phaunos.models import validate_audiolist, validate_taglist
 from phaunos.user.models import User
 
 from phaunos.shared import db
@@ -31,12 +32,13 @@ from jwt import ExpiredSignatureError
 
 
 
-class PhaunosBaseView(BaseView):
+class PhaunosModelView(ModelView):
+
     def render(self, template, **kwargs):
         try:
             verify_jwt_in_request()
             self._template_args['current_user'] = get_current_user()
-            resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
+            resp = make_response(super(PhaunosModelView, self).render(template, **kwargs))
 
         except ExpiredSignatureError:
             # if the access token has expired, create new non-fresh token
@@ -45,28 +47,47 @@ class PhaunosBaseView(BaseView):
                 verify_jwt_refresh_token_in_request()
                 self._template_args['current_user'] = get_current_user()
                 access_token = create_access_token(identity=get_jwt_identity(), fresh=False)
-                resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
+                resp = make_response(super(PhaunosModelView, self).render(template, **kwargs))
                 set_access_cookies(resp, access_token)
             except ExpiredSignatureError:
                 # if the refresh token has expired, user must login again
                 current_app.logger.info("Refresh token has expired")
-                resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
+                resp = make_response(super(PhaunosModelView, self).render(template, **kwargs))
                 unset_jwt_cookies(resp)
         except NoAuthorizationError:
             current_app.logger.info("No authorization token.")
-            resp = make_response(super(PhaunosBaseView, self).render(template, **kwargs))
+            resp = make_response(super(PhaunosModelView, self).render(template, **kwargs))
         return resp
 
+    def is_visible(self):
+        if request.path == url_for('admin_signup.index'):
+            return False
+        return True
 
-class PhaunosModelView(PhaunosBaseView, ModelView):
+
+class PhaunosBaseView(BaseView):
     pass
 
 
-class PhaunosAdminIndexView(PhaunosBaseView, AdminIndexView):
-    pass
+class PhaunosAdminIndexView(AdminIndexView):
+    def is_visible(self):
+        return False
+
+class SignupView(BaseView):
+
+    @expose('/')
+    def index(self):
+        return self.render('admin/signup.html')
+
+    def is_visible(self):
+        if request.path == url_for('admin_signup.index'):
+            return True
+        return False
+
 
 
 class UserAdminView(PhaunosModelView):
+    category='dude'
     column_exclude_list = ['password',]
     form_excluded_columns = ['annotations', 'user_project_rel']
     form_widget_args = {
@@ -92,14 +113,11 @@ class UserAdminView(PhaunosModelView):
         form.projects.query = db.session.query(Project).join(UserProjectRel) \
             .filter(UserProjectRel.user_id==obj.id).all()
         form.projects.data = form.projects.query
-        current_app.logger.info(form.projects.__dict__)
-        current_app.logger.info(form.projects.__html__())
-        current_app.logger.info("|".join([p(**{'style': 'font-size:50px;'}) for p in form.projects]))
-        current_app.logger.info(form.projects.__html__())
         return form
     
     
 class TagAdminView(PhaunosModelView):
+    category='dude'
     column_exclude_list = ['annotations',]
     form_excluded_columns = ['annotations',]
     form_widget_args = {
@@ -117,10 +135,33 @@ class TagsetAdminView(PhaunosModelView):
     }
 
 
+class DownloadFileWidget(TextInput):
+    def __call__(self, field, **kwargs):
+        kwargs.setdefault("id", field.id)
+        kwargs.setdefault("type", self.input_type)
+        if "value" not in kwargs:
+            kwargs["value"] = field._value()
+        if "required" not in kwargs and "required" in getattr(field, "flags", []):
+            kwargs["required"] = True
+        html = "<input %s>" % self.html_params(name=field.name, **kwargs)
+        url = url_for('bp_api.uploaded', filename=field._value())
+        html +=  f'<a href="{url}">Download</a>'
+        return Markup(html)
+
+
+
+
 class ProjectAdminView(PhaunosModelView):
     
     column_list = ['name', 'created_by', 'num_annotations']
+
+    form_create_rules = ('name', 'visualization_type',
+                       'allow_regions',
+                       'audiolist_filename', 'taglist_filename')
     
+    form_edit_rules = ('name', 'created_by', 'visualization_type',
+                       'allow_regions', 'tagsets', 'users',
+                       'audiolist_filename', 'taglist_filename')
 
     def _get_annotations(view, context, project, name):
 
@@ -142,25 +183,30 @@ class ProjectAdminView(PhaunosModelView):
     def get_create_form(self):
         form = super(ProjectAdminView, self).get_create_form()
         form.audiolist_filename = FileUploadField(
-            base_path=os.path.join(current_app.config['UPLOAD_FOLDER'], 'audiolist_filenames'),
+            base_path=current_app.config['FILE_FOLDER'],
+            relative_path=os.path.join(current_app.config['UPLOAD_FOLDER'] , 'audiolist_files/'),
             allow_overwrite=False,
             namegen=random_name,
             validators=[validate_audiolistfile])
         form.taglist_filename = FileUploadField(
-            base_path=os.path.join(current_app.config['UPLOAD_FOLDER'], 'taglist_filenames'),
+            base_path=current_app.config['FILE_FOLDER'],
+            relative_path=os.path.join(current_app.config['UPLOAD_FOLDER'], 'taglist_files/'),
             allow_overwrite=False,
             namegen=random_name,
+            validators=[validate_taglistfile]
         )
-#            validators=[validate_taglistfile])
         return form
 
     def get_edit_form(self):
         form = super(ProjectAdminView, self).get_edit_form()
         form.users = sqla.fields.QuerySelectMultipleField("Users", allow_blank=True)
+        form.audiolist_filename = StringField(widget=DownloadFileWidget(), render_kw={'disabled': True})
+        form.taglist_filename = StringField(widget=DownloadFileWidget(), render_kw={'disabled': True})
         return form
 
     def edit_form(self, obj=None):
         form = super(ProjectAdminView, self).edit_form(obj)
+        form.created_by.render_kw = {'disabled': True}
         form.users.query = User.query
         form.users.data = db.session.query(User).join(UserProjectRel) \
             .filter(UserProjectRel.project_id==obj.id).all()
@@ -168,6 +214,9 @@ class ProjectAdminView(PhaunosModelView):
 
 
 def random_name(obj, file_data):
+    current_app.logger.info("in random_name")
+    current_app.logger.info(obj.__dict__)
+    current_app.logger.info(file_data.filename)
     return str(uuid.uuid4()) + ".csv"
 
 
