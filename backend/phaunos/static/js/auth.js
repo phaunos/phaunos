@@ -1,22 +1,67 @@
 $(document).ready(function() {
+
     $('#login').submit(function (e) {
+        $('.help-block').empty();
         $.ajax({
             type: "POST",
             contentType: "application/json",
             dataType: "json",
             url: login_url,
             data: JSON.stringify(
-                {"username": $('#login input[id=username]').val(),
-                    "password": $('#login input[id=password]').val()}),
+                {"username": $('#login #username').val(),
+                    "password": $('#login #password').val()}),
             success: function (data, textStatus, jqXHR) {
                 location.reload();
             },
             error: function (jqXHR, textStatus, errorThrown) {
-                $('#error').text(jqXHR.responseJSON["messages"][0]);
+                $('#auth_container #error').text(jqXHR.responseJSON["messages"][0]);
             },
         });
         e.preventDefault(); // block the traditional submission of the form.
     });
+
+    $('#signup').submit(function (e) {
+        $('.help-block').empty();
+        $.ajax({
+            type: "POST",
+            contentType: "application/json",
+            dataType: "json",
+            url: signup_url,
+            data: JSON.stringify(
+                {"username": $('#signup #username').val(),
+                    "email": $('#signup #email').val(),
+                    "password": $('#signup #password').val()}),
+            success: function (data, textStatus, jqXHR) {
+                $('#signup #msg').text(data['msg']).css('color','green');
+            },
+            error: function (jqXHR, textStatus, errorThrown) {
+                $.each(jqXHR.responseJSON, function(key, value){
+                    if (key === 'msg'){
+                        $('#signup #msg').text(value).css('color','red');
+                    }
+                    else{
+                        $('#signup input[id=' + key + ']').parent().next().text(value).css('color','red');
+                    }
+                });
+
+            },
+        });
+        e.preventDefault(); // block the traditional submission of the form.
+    });
+
+    /* password confirm validator */
+    var password = $("#signup #password")[0];
+    var confirm_password = $("#signup #confirm_password")[0];
+    function validatePassword(){
+        if(password.value != confirm_password.value) {
+            confirm_password.setCustomValidity("Passwords Don't Match");
+        } else {
+            confirm_password.setCustomValidity('');
+        }
+    }
+    password.onchange = validatePassword;
+    confirm_password.onkeyup = validatePassword;
+
     $('#logout').click(function (e) {
         $.ajax({
             type: "GET",

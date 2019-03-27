@@ -5,6 +5,7 @@
     <script src="http://code.jquery.com/jquery-1.8.3.min.js"></script>
     <script type="text/javascript">
         var login_url = "{{ url_for('bp_api.login', web=1) }}";
+        var signup_url = "{{ url_for('bp_api.create_user', web=1) }}";
         var logout_url = "{{ url_for('bp_api.logout') }}";
     </script>
     <script type="text/javascript" src="{{ url_for('static', filename='js/auth.js') }}"></script>
@@ -16,19 +17,19 @@
     <form id="login" class="form-inline">
         <div class="form-group">
             <label class="sr-only" for="username">Username</label>
-            <input type="text" class="form-control" placeholder="Username" id="username" value="{{ request.form.username }}">
+            <input type="text" class="form-control" placeholder="Username" id="username" required value="{{ request.form.username }}">
         </div>
         <div class="form-group">
             <label class="sr-only" for="password">Password</label>
-            <input type="password" class="form-control" id="password" placeholder="Password" value="{{ request.form.password }}">
+            <input type="password" class="form-control" id="password" placeholder="Password" required value="{{ request.form.password }}">
         </div>
         <button type="submit" class="btn btn-default">Submit</button>
 
         <div class="form-group">
-            <a id="signup" href="{{ url_for('admin_signup.index') }}">Sign up</a>
+            <a href="{{ url_for('admin_signup.index') }}">Sign up</a>
         </div>
     </form>
-    <div id="error" class="text-danger"/>
+    <div id="error" class="help-block"/>
     {% else %}
     <div id="logged">Logged as {{ current_user.username }}. 
         <a id="logout" style="cursor: pointer; margin-left:10px;">Logout</a>

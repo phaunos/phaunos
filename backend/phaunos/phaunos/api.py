@@ -34,7 +34,6 @@ from flask_jwt_extended import (
 )
 
 from phaunos.shared import db, bp_api
-from phaunos.utils import build_response
 
 
 
@@ -77,13 +76,13 @@ def users():
     project_id = request.args.get('project_id', None, type=int)
     if project_id:
         if not Project.query.get(project_id):
-            return build_response(f'Project with id {project_id} not found'), 404
+            return jsonify({'msg':f'Project with id {project_id} not found'}), 404
         if not (user.is_admin or user.is_project_admin(project_id)):
-            return build_response('Not allowed.'), 403
+            return jsonify({'msg':'Not allowed.'}), 403
         query = db.session.query(User).join(UserProjectRel) \
             .filter(UserProjectRel.project_id==project_id)
     elif not user.is_admin:
-        return build_response('Not allowed.'), 403
+        return jsonify({'msg':'Not allowed.'}), 403
     else:
         query = User.query
     return user_schema.dumps(query.paginate(page, 10, False).items, many=True)
@@ -108,12 +107,10 @@ def projects():
 def project_detail(project_id):
     user = get_current_user()
     project = Project.query.get(project_id)
-    current_app.logger.info(user)
-    current_app.logger.info(project)
     if not project:
-        return build_response(f'Project with id {project_id} not found'), 404
+        return jsonify({'msg':f'Project with id {project_id} not found'}), 404
     if not (user.is_admin or user.is_project_admin(project_id)):
-        return build_response('Not allowed.'), 403
+        return jsonify({'msg':'Not allowed.'}), 403
     return project_schema.dumps(project)
 
 
@@ -125,9 +122,9 @@ def tagsets():
 
     # Filter by project (required)
     if not project_id:
-        return build_response('Missing project_id parameter.'), 422
+        return jsonify({'msg':'Missing project_id parameter.'}), 422
     if not Project.query.get(project_id):
-        return build_response(f'Project with id {project_id} not found'), 404
+        return jsonify({'msg':f'Project with id {project_id} not found'}), 404
     subquery = Tagset.query.filter(Tagset.projects.any(Project.id==project_id))
 
     return tagset_schema.dumps(
@@ -144,14 +141,14 @@ def audios():
 
     # Filter by project (required)
     if not project_id:
-        return build_response('Missing project_id parameter.'), 422
+        return jsonify({'msg':'Missing project_id parameter.'}), 422
     if not Project.query.get(project_id):
-        return build_response(f'Project with id {project_id} not found'), 404
+        return jsonify({'msg':f'Project with id {project_id} not found'}), 404
     subquery = Audio.query.filter(Audio.projects.any(Project.id==project_id))
 
     # Check user is project admin
     if not (user.is_admin or user.is_project_admin(project_id)):
-        return build_response('Not allowed.'), 403
+        return jsonify({'msg':'Not allowed.'}), 403
 
     return audio_schema.dumps(
         subquery.paginate(page, 10, False).items,
@@ -170,21 +167,21 @@ def annotations():
 
     # Filter by project (required)
     if not project_id:
-        return build_response('Missing project_id parameter.'), 422
+        return jsonify({'msg':'Missing project_id parameter.'}), 422
     if not Project.query.get(project_id):
-        return build_response(f'Project with id {project_id} not found'), 404
+        return jsonify({'msg':f'Project with id {project_id} not found'}), 404
     subquery = Annotation.query.filter(Annotation.project_id==project_id)
     
     # Filter by audio
     if audio_id:
         if not Audio.query.get(audio_id):
-            return build_response(f'Audio with id {audio_id} not found'), 404
+            return jsonify({'msg':f'Audio with id {audio_id} not found'}), 404
         subquery = subquery.filter(Annotation.audio_id==audio_id)
 
     # Filter by tag
     if tag_id:
         if not Tag.query.get(tag_id):
-            return build_response(f'Tag with id {tag_id} not found'), 404
+            return jsonify({'msg':f'Tag with id {tag_id} not found'}), 404
         subquery = subquery.filter(Annotation.tag_id==tag_id)
 
     # If the user is not project admin, only get his annotations

@@ -36,7 +36,7 @@ def send_email(to, subject, template):
 
 def send_confirmation_email(to, token):
     confirm_url = url_for(
-        'user_api.confirm_email',
+        'bp_api.confirm_email',
         token=token,
         _external=True)
     html = render_template(

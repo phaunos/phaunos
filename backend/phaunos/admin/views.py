@@ -87,7 +87,7 @@ class SignupView(BaseView):
 
 
 class UserAdminView(PhaunosModelView):
-    category='dude'
+    can_create = False
     column_exclude_list = ['password',]
     form_excluded_columns = ['annotations', 'user_project_rel']
     form_widget_args = {
@@ -117,7 +117,6 @@ class UserAdminView(PhaunosModelView):
     
     
 class TagAdminView(PhaunosModelView):
-    category='dude'
     column_exclude_list = ['annotations',]
     form_excluded_columns = ['annotations',]
     form_widget_args = {
