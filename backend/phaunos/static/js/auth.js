@@ -11,10 +11,10 @@ $(document).ready(function() {
                 {"username": $('#login #username').val(),
                     "password": $('#login #password').val()}),
             success: function (data, textStatus, jqXHR) {
-                location.reload();
+                location.reload(true);
             },
             error: function (jqXHR, textStatus, errorThrown) {
-                $('#auth_container #error').text(jqXHR.responseJSON["messages"][0]);
+                $('#auth_container #error').text(jqXHR.responseJSON["msg"][0]);
             },
         });
         e.preventDefault(); // block the traditional submission of the form.
@@ -49,25 +49,12 @@ $(document).ready(function() {
         e.preventDefault(); // block the traditional submission of the form.
     });
 
-    /* password confirm validator */
-    var password = $("#signup #password")[0];
-    var confirm_password = $("#signup #confirm_password")[0];
-    function validatePassword(){
-        if(password.value != confirm_password.value) {
-            confirm_password.setCustomValidity("Passwords Don't Match");
-        } else {
-            confirm_password.setCustomValidity('');
-        }
-    }
-    password.onchange = validatePassword;
-    confirm_password.onkeyup = validatePassword;
-
     $('#logout').click(function (e) {
         $.ajax({
             type: "GET",
             url: logout_url,
             success: function (data, textStatus, jqXHR) {
-                location.reload();
+                location.reload(true);
             },
             error: function (jqXHR, textStatus, errorThrown) {
                 $('#error').text(jqXHR.responseJSON["messages"][0]);

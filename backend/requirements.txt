@@ -14,3 +14,4 @@ Flask-JWT-Extended==3.17.0
 Flask-Mail==0.9.1
 marshmallow==3.0.0rc4
 Flask-Admin==1.5.3
+Flask-Cors==3.0.7

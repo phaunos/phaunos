@@ -22,8 +22,8 @@ CONFIRMATION_TOKEN_EXPIRATION = int(os.environ['CONFIRMATION_TOKEN_EXPIRATION'])
 
 MAIL_SERVER = os.environ['MAIL_SERVER']
 MAIL_PORT = int(os.environ['MAIL_PORT'])
-MAIL_USE_TLS = os.environ['MAIL_USE_TLS'] == 'True'
-MAIL_USE_SSL = os.environ['MAIL_USE_SSL'] == 'True'
+MAIL_USE_TLS = int(os.environ['MAIL_USE_TLS']) == 1
+MAIL_USE_SSL = int(os.environ['MAIL_USE_SSL']) == 1
 MAIL_DEFAULT_SENDER = os.environ['MAIL_DEFAULT_SENDER']
 MAIL_USERNAME = os.environ['MAIL_USERNAME']
 MAIL_PASSWORD = os.environ['MAIL_PASSWORD']
@@ -34,3 +34,5 @@ JWT_TOKEN_LOCATION = ('headers', 'cookies')
 JWT_SECRET_KEY = os.environ['JWT_SECRET_KEY']
 JWT_ACCESS_TOKEN_EXPIRES = int(os.environ['JWT_ACCESS_TOKEN_EXPIRES'])
 JWT_REFRESH_TOKEN_EXPIRES = int(os.environ['JWT_REFRESH_TOKEN_EXPIRES'])
+JWT_COOKIE_CSRF_PROTECT = int(os.environ['JWT_COOKIE_CSRF_PROTECT']) == 1
+JWT_COOKIE_SECURE = int(os.environ['JWT_COOKIE_SECURE']) == 1

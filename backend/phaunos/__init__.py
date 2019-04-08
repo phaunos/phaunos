@@ -13,7 +13,6 @@ import uuid
 import os
 import random
 from flask import jsonify
-from flask_login import LoginManager
 from phaunos.shared import db, ma, jwt, bp_api, bp_admin_auth
 from phaunos.email_utils import mail
 from phaunos.admin import admin
@@ -30,12 +29,15 @@ from phaunos.admin.views import (
 )
 from phaunos.user import api
 from phaunos.phaunos import api
+from flask_cors import CORS
 
 
 ######################################
 #### Application Factory Function ####
 ######################################
 
+
+cors = CORS(resources={r"/api/*": {"origins": "*"}}, expose_headers=['Access-Control-Allow-Origin'], supports_credentials=True)
 
 
 def create_app(testing=False):
@@ -58,6 +60,7 @@ def initialize_extensions(app):
     ma.init_app(app)
     mail.init_app(app)
     jwt.init_app(app)
+    cors.init_app(app)
 
     admin.init_app(app)
     with app.app_context():
@@ -224,7 +227,7 @@ def register_cli(app):
             p.allow_regions = random.choice([True, False])
             p.audiolist_filename = random.choice(audiolist_filenames)
             p.taglist_filename = random.choice(taglist_filenames)
-            p.created_by = random.choice(users)
+#            p.created_by = random.choice(users)
             db.session.add(p)
             db.session.flush()
             # add users

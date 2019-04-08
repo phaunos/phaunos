@@ -11,6 +11,17 @@ from sqlalchemy.ext.declarative import declarative_base
 from marshmallow import fields, validate, pre_load
 from sqlalchemy import event
 
+from flask_jwt_extended import (
+    get_current_user,
+    get_jwt_identity,
+    jwt_required,
+    verify_jwt_in_request,
+    verify_jwt_refresh_token_in_request,
+    create_access_token,
+    set_access_cookies,
+    unset_jwt_cookies,
+)
+
 
 Base = declarative_base()
 
@@ -138,8 +149,9 @@ class Project(db.Model):
     audiolist_filename = db.Column(db.String, nullable=False)
     taglist_filename = db.Column(db.String, nullable=False)
     min_annotations_per_file = db.Column(db.Integer, default=1, nullable=False)
-    created_by_id = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'))
-    created_by = db.relationship(User, backref=db.backref('projects', cascade='all'))
+    members_only = db.Column(db.Boolean, default=False, nullable=False)
+#    created_by_id = db.Column(db.Integer, db.ForeignKey('phaunos_user.id'))
+#    created_by = db.relationship(User, backref=db.backref('projects', cascade='all'))
     tagsets = db.relationship('Tagset',
             secondary=tagset_project_rel,
             lazy=True,
@@ -277,7 +289,6 @@ user_schema = UserSchema()
 ###################
 # Event listeners #
 ###################
-
 
 @event.listens_for(db.session, 'transient_to_pending')
 def get_audiolist_from_file(session, instance):

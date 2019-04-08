@@ -106,11 +106,13 @@ def login():
 
     web = request.args.get('web', 0, type=int)
 
+    current_app.logger.info("in login")
+    current_app.logger.info(data)
 
     user = User.query.filter(User.username==data['username']).first()
 
     if not user:
-        return jsonify({'username': 'User {} doesn\'t exist'.format(data['username'])}), 400
+        return jsonify({'msg': 'User {} doesn\'t exist'.format(data['username'])}), 400
 
     if not user.confirmed_on:
         return jsonify({'msg': f'{user.email} not confirmed'}), 400
@@ -123,7 +125,7 @@ def login():
             set_access_cookies(resp, access_token)
             set_refresh_cookies(resp, refresh_token)
         else:
-            resp = jsonify({'msg':f'Logged in as {user.username}',
+            resp = jsonify({'msg':f'Logged as {user.username}',
                 'access_token': access_token, 'refresh_token': refresh_token}
             )
         return resp, 200

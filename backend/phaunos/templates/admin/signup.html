@@ -1,4 +1,8 @@
 {% extends 'admin/master.html' %}
+{% block head %}
+    {{ super() }}
+    <script type="text/javascript" src="{{ url_for('static', filename='js/signup.js') }}"></script>
+{% endblock %}
 {% block body %}
 
 <form id="signup" class="form-horizontal">
